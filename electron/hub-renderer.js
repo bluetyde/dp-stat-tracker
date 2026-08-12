@@ -176,14 +176,25 @@ function renderLiveMatch() {
   attachPlayerClickHandlers(liveMatchTeamsEl);
 }
 
+// Wires up click-to-open-Player-Quick-Reference on a scoreboard already
+// rendered by scoreboard-view.js's renderScoreboardTeams(). Deliberately a
+// separate pass over the DOM afterward, not built into scoreboard-view.js
+// itself — that file is shared with the live overlay (overlay-renderer.js),
+// which should never open a Hub-only modal mid-game. Only ever called from
+// Hub-side code (this file), so the overlay is untouched by construction —
+// no runtime "which window am I in" check needed anywhere.
+//
+// Selectors here must match scoreboard-view.js's actual output: each row is
+// `.player-row` with a `data-account-id` attribute (added there
+// specifically to support this), and the name is `span.name`.
 function attachPlayerClickHandlers(container) {
   const playedWithMap = new Map((latestHubData?.playedWith ?? []).map((p) => [p.accountId, p]));
 
-  container.querySelectorAll('.scoreboard-row').forEach((row) => {
+  container.querySelectorAll('.player-row').forEach((row) => {
     const accountId = row.dataset.accountId;
     if (!accountId) return;
 
-    const nameEl = row.querySelector('.player-name') || row.querySelector('td:nth-child(2)');
+    const nameEl = row.querySelector('.name');
     if (nameEl && !nameEl.querySelector('.played-with-tag')) {
       nameEl.classList.add('player-name-link');
       nameEl.addEventListener('click', (e) => {
@@ -891,6 +902,10 @@ async function openMatchDetail(matchId) {
     teams: match.teams,
     localAccountId: match.localAccountId,
   });
+  // Same click-to-open-Player-Quick-Reference wiring the Live Match tab
+  // already uses (see attachPlayerClickHandlers's doc comment) — reused
+  // as-is rather than building a second modal for match-detail specifically.
+  attachPlayerClickHandlers(matchDetailTeams);
   matchDetailBackdrop.hidden = false;
 }
 

@@ -30,6 +30,12 @@ function renderScoreboardTeamColumn(teamIndex, label, roundWins, rows, localAcco
   for (const row of [...rows].sort((a, b) => b.damage - a.damage)) {
     const el = document.createElement('div');
     el.className = 'player-row' + (row.accountId === localAccountId ? ' is-you' : '');
+    // Inert data attribute, not a behavior — the overlay never reads it.
+    // Lets a Hub-context caller (see hub-renderer.js's
+    // attachPlayerClickHandlers) wire up player-name clicks after the fact
+    // without this shared file needing to know whether it's rendering into
+    // the live overlay or a Hub view.
+    el.dataset.accountId = row.accountId;
     const bestWeapon = row.bestWeapon ? row.bestWeapon.label : '—';
     el.innerHTML = `
       <span class="name">${scoreboardEscapeHtml(row.name)}</span>
