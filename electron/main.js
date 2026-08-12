@@ -483,6 +483,11 @@ async function main() {
   computeMatchStats = statsModule.computeMatchStats;
   parser = new DueProcessLogParser();
 
+  // Force userData path to a fixed non-OneDrive location in %APPDATA% so Chromium's
+  // cache never collides with OneDrive file-sync locks regardless of workspace location.
+  const customUserDataPath = path.join(app.getPath('appData'), 'due-process-scoreboard');
+  app.setPath('userData', customUserDataPath);
+
   // Step 1: load both archives directly — match-archive.json is the totals
   // source of truth (match-archive.js sums it on read), so the Hub can show
   // correct history the moment its window is ready, with no rescanning

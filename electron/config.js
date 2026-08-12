@@ -32,5 +32,5 @@ module.exports = {
   // not bare backtick, so a collision with a bare-key console bind is
   // unlikely, but not confirmed one way or the other. Watch for it in-game;
   // change here if it turns out to clash.
-  OVERLAY_HOTKEY: 'Alt+`',
+  OVERLAY_HOTKEY: 'Alt+F9',
 };
