@@ -102,10 +102,21 @@ class MatchArchive {
     return this.data.matches.some((m) => m.matchId === matchId);
   }
 
+  /**
+   * Whether an already-archived match is missing fields a newer schema
+   * version added (roundsUsed/deaths/headshots on weaponBreakdown entries,
+   * structured mapRounds, team0Name/team1Name) — used by recordMatch() to
+   * let a rescan silently upgrade an old entry in place, but only when the
+   * match is still reachable in the raw log to reprocess (see
+   * rescan.js's dedup gate, which calls this before skipping an already-
+   * recorded match).
+   */
   isLegacyMatch(matchId) {
-    const m = this.data.matches.find((item) => item.matchId === matchId);
+    const m = this.getMatch(matchId);
     if (!m) return false;
-    return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined);
+    const rounds = m.mapRounds || m.roundMaps;
+    if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
+    return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
   }
 
   /**
@@ -122,20 +133,11 @@ class MatchArchive {
    * `teams` should be exactly stats.js's computeMatchStats() output for
    * this match — not trimmed down — so the match-detail view has everything
    * it needs without depending on the raw log still being on disk.
-   */
-  /**
-   * Checks whether a recorded match in the archive needs an upgrade (legacy format).
-   */
-  isLegacyMatch(matchId) {
-    const m = this.getMatch(matchId);
-    if (!m) return false;
-    const rounds = m.mapRounds || m.roundMaps;
-    if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
-    return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
-  }
-
-  /**
-   * Record one full match.
+   *
+   * If `entry.matchId` is already archived, it's left untouched UNLESS
+   * isLegacyMatch() says it's missing newer fields — in that case it's
+   * overwritten with the freshly computed `entry` (see isLegacyMatch's doc
+   * comment).
    */
   recordMatch(entry) {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);

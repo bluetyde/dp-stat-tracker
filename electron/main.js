@@ -330,10 +330,19 @@ function currentPlayerName() {
   return rankedArchive.getPlayerName(accountId) ?? otherArchive.getPlayerName(accountId);
 }
 
-function computeWinPrediction(teams) {
+function computeWinPrediction(teams, playedWithStats) {
   if (!teams || !teams[0] || !teams[1]) return null;
 
-  const playedWithMap = new Map((rankedArchive ? rankedArchive.getPlayedWithStats() : []).map((p) => [p.accountId, p.dplRating]));
+  // NOTE: playedWithStats (rankedArchive.getPlayedWithStats()) deliberately
+  // excludes the local player (it's "who you've played with/against"), so
+  // playedWithMap never has an entry for either team's local-player row —
+  // that row's `?? 1.0` fallback below always fires, meaning the local
+  // player's own skill is never actually factored into their team's average
+  // rating here. Known gap, not fixed blindly: there's no existing
+  // aggregate of the local player's own kpr/adr/kast in the same shape
+  // dplRating below is built from, so a real fix needs that design decision
+  // made deliberately rather than guessed at here.
+  const playedWithMap = new Map((playedWithStats ?? []).map((p) => [p.accountId, p.dplRating]));
 
   const getTeamAvgRating = (teamRows) => {
     if (!teamRows || teamRows.length === 0) return 1.0;
@@ -361,11 +370,11 @@ function computeWinPrediction(teams) {
   };
 }
 
-function getLiveMatchState() {
+function getLiveMatchState(playedWithStats) {
   if (!parser || !parser.current) return null;
   const match = parser.current;
   const stats = computeMatchStats(match);
-  const prediction = computeWinPrediction(stats.teams);
+  const prediction = computeWinPrediction(stats.teams, playedWithStats);
   return {
     status: match.status,
     liveMatchId: match.liveMatchId,
@@ -379,6 +388,12 @@ function getLiveMatchState() {
 
 function sendHubUpdate() {
   if (!hubWindow || hubWindow.isDestroyed()) return;
+  // Computed once and reused for both keys below — hub-renderer.js reads
+  // `playedWith` (live-match prediction lookups) and `playedWithStats` (the
+  // Played With tab itself) as separate names, but they're the exact same
+  // data; calling getPlayedWithStats() twice just redid the same
+  // all-matches aggregation for no reason.
+  const playedWithStats = rankedArchive.getPlayedWithStats();
   hubWindow.webContents.send('hub:update', {
     playerName: currentPlayerName(),
     // Career totals are derived ONLY from rankedArchive — see match-archive.js
@@ -389,10 +404,10 @@ function sendHubUpdate() {
     topWeapons: rankedArchive.getTopWeapons(4),
     weaponStats: rankedArchive.getWeaponStats(),
     killsTrend: rankedArchive.getRecentKillsTrend(12),
-    playedWith: rankedArchive.getPlayedWithStats(),
-    playedWithStats: rankedArchive.getPlayedWithStats(),
+    playedWith: playedWithStats,
+    playedWithStats: playedWithStats,
     mapStats: rankedArchive.getMapStats(),
-    liveMatch: getLiveMatchState(),
+    liveMatch: getLiveMatchState(playedWithStats),
   });
 }
 

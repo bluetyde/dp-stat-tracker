@@ -457,6 +457,21 @@
   #matchDetailBackdrop[hidden] {
     display: none !important;
   }
+  /* Same bug, reintroduced independently in four later additions: each of
+     #weaponsContent/#liveMatchContent/#playedWithContent/#mapsContent
+     carries its own unconditional inline `style="display:flex"` on the same
+     element as its `hidden` attribute, which — per the exact mechanism
+     explained above for #matchDetailBackdrop — silently defeats `hidden`
+     regardless of what hub-renderer.js sets it to. Confirmed live: the Live
+     Match tab's empty state and its "prediction" card (placeholder 1.00 vs
+     1.00, 50%) were both rendering at once with no live match running. Same
+     fix as above, applied to all four.  */
+  #weaponsContent[hidden],
+  #liveMatchContent[hidden],
+  #playedWithContent[hidden],
+  #mapsContent[hidden] {
+    display: none !important;
+  }
   #matchDetailCard {
     position: relative;
     width: 1120px;
