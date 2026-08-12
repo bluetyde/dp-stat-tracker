@@ -6,9 +6,29 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "web": "node server.js"
+    "web": "node server.js",
+    "dist": "electron-builder"
   },
   "devDependencies": {
-    "electron": "^43.4.0"
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.dpstat.tracker",
+    "productName": "Due Process Tracker",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "!electron/*.log",
+      "parser.js",
+      "stats.js",
+      "package.json"
+    ],
+    "asar": false,
+    "win": {
+      "target": "portable"
+    }
   }
 }

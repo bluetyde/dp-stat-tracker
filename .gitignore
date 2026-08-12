@@ -9,3 +9,7 @@ electron_final.log
 # Ad-hoc dev/debug scripts and mock userData used while verifying changes —
 # not part of the app, not meant to ship.
 scratch/
+
+# electron-builder output (npm run dist) — regenerated from source, not
+# meant to be committed (the portable .exe alone is ~85 MB).
+dist/
