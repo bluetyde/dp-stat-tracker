@@ -1,0 +1,30 @@
+'use strict';
+// Preload script (contextIsolation:true, nodeIntegration:false in both
+// windows) — the only bridge between renderer pages and the main process.
+// Renderers get plain data via these callbacks; they never touch fs/child_process.
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('overlayAPI', {
+  onUpdate: (callback) => {
+    ipcRenderer.on('overlay:update', (_event, payload) => callback(payload));
+  },
+});
+
+contextBridge.exposeInMainWorld('hubAPI', {
+  onUpdate: (callback) => {
+    ipcRenderer.on('hub:update', (_event, payload) => callback(payload));
+  },
+  requestRefresh: () => ipcRenderer.send('hub:request-refresh'),
+  // Full archived scoreboard for one match (both teams, every player) —
+  // fetched on demand when a Recent Matches row is clicked, not pushed with
+  // every hub:update (those stay list-summary-sized).
+  getMatchDetail: (matchId) => ipcRenderer.invoke('hub:get-match-detail', matchId),
+  // Removes one match (from whichever archive — ranked or other — it lives
+  // in) and returns true/false. Caller is responsible for confirming with
+  // the user first; this performs the deletion unconditionally.
+  deleteMatch: (matchId) => ipcRenderer.invoke('hub:delete-match', matchId),
+  // Full (uncapped) match lists for the Ranked History / Other History nav views.
+  getRankedHistory: () => ipcRenderer.invoke('hub:get-ranked-history'),
+  getOtherHistory: () => ipcRenderer.invoke('hub:get-other-history'),
+});

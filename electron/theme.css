@@ -1,0 +1,258 @@
+/* Shared visual language for the overlay + hub windows, adapted from the
+   imported Claude Design mockups ("Home Hub.dc.html" / "Overlay Scoreboard.dc.html",
+   project "Due Process Tracker Design"). The mockups were static/inline-styled
+   authoring markup for the design tool's live-preview runtime (x-dc / dc-runtime);
+   this file lifts their color/type/spacing language into reusable classes for
+   the real, data-driven pages instead of shipping that runtime. */
+
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #0d1013;
+  --bg-raised: #0f1418;
+  --bg-tile: #12171c;
+  --border: #1e262d;
+  --border-soft: #232c34;
+  --text: #e4eaf0;
+  --text-bright: #f2f6fa;
+  --text-muted: #6d7b88;
+  --text-faint: #5d6b78;
+  --accent: #7fb6e8;
+  --accent-bright: #a9d0f4;
+  --accent-dim: #4e6d8c;
+  --loss: #d1565e;
+  --loss-bright: #f0b7bb;
+
+  --font-display: 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--accent-bright);
+}
+
+::selection {
+  background: rgba(127, 182, 232, 0.28);
+}
+
+.kicker {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+}
+
+/* Bordered panel with small blueprint-style corner tick marks. */
+.panel {
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+.panel > .corner {
+  position: absolute;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--border-soft);
+}
+.panel > .corner.tl {
+  top: -5px;
+  left: -4px;
+}
+.panel > .corner.tr {
+  top: -5px;
+  right: -4px;
+}
+.panel > .corner.bl {
+  bottom: -6px;
+  left: -4px;
+}
+.panel > .corner.br {
+  bottom: -6px;
+  right: -4px;
+}
+
+.stat-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.stat-tile {
+  background: var(--bg-tile);
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stat-tile--accent {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.stat-tile .stat-label {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.stat-tile--accent .stat-label {
+  color: var(--accent);
+}
+.stat-tile .stat-value {
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 600;
+  line-height: 0.9;
+  color: var(--text-bright);
+}
+.stat-tile--accent .stat-value {
+  color: var(--accent);
+}
+.stat-tile .stat-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.result-win {
+  color: var(--accent);
+}
+.result-loss {
+  color: var(--loss);
+}
+
+/* Marks a match recorded without ever seeing a real matchEnded event (see
+   rescan.js's inferred-completion path) — deliberately never styled to look
+   identical to a confirmed row. */
+.inferred-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #d1a33f;
+  border: 1px solid #d1a33f;
+  border-radius: 2px;
+  vertical-align: middle;
+  cursor: help;
+}
+
+/* Team scoreboard — shared by the live overlay (overlay.html) and the Hub's
+   match-detail view (hub.html), both via scoreboard-view.js, so both stay
+   pixel-identical to the design pulled from Claude Design's
+   "Overlay Scoreboard.dc.html" instead of drifting into two layouts. */
+.scoreboard-teams {
+  display: grid;
+  /* minmax(0, 1fr), not bare 1fr — a bare fr track has an implicit minimum
+     equal to its content's intrinsic width, so it never actually shrinks
+     below that regardless of container width. That's what caused the
+     horizontal overflow in the Hub's match-detail modal: at 7 columns x 2
+     teams, long names/weapon labels forced the grid wider than the panel,
+     and the overflow:hidden/text-overflow:ellipsis on .player-row span
+     never got a chance to apply because the track itself wouldn't shrink.
+     minmax(0, 1fr) removes that floor so ellipsis truncation can actually
+     kick in. Same fix applied to .player-row/.col-head-row below. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.team-col:first-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+.team-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.team-head .badge {
+  min-width: 26px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  color: #0d1013;
+}
+.team-head.team-0 { background: rgba(127, 182, 232, 0.1); }
+.team-head.team-1 { background: rgba(209, 86, 94, 0.1); }
+.team-head.team-0 .badge { background: var(--accent); }
+.team-head.team-1 .badge { background: var(--loss); }
+.team-head .team-label {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.team-head.team-0 .team-label { color: #bcd9f3; }
+.team-head.team-1 .team-label { color: #f0b7bb; }
+
+.player-row, .col-head-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, .65fr) minmax(0, .55fr) minmax(0, .9fr) minmax(0, .6fr) minmax(0, .7fr) minmax(0, 1fr);
+  gap: 5px;
+  padding: 6px 14px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.col-head-row {
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #66757f;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.player-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-row .name { font-family: var(--font-display); font-size: 15px; color: var(--text); }
+.player-row.is-you .name { color: var(--accent); }
+.num { text-align: right; font-family: var(--font-display); font-size: 15px; color: var(--text); }
+.ctr { text-align: center; font-family: var(--font-display); font-size: 15px; color: var(--text); }
+.dim { color: #9aa7b4; }
+.wpn { text-align: right; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa7b4; }
+
+table.rows {
+  width: 100%;
+  border-collapse: collapse;
+}
+table.rows th {
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+table.rows td {
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--text);
+}
+table.rows tr:last-child td {
+  border-bottom: none;
+}

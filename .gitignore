@@ -1,0 +1,7 @@
+node_modules/
+
+# Stray stdout/stderr redirects from manual `electron .` runs during dev —
+# not written by app code, and not the real archive data (that lives outside
+# the project folder, under Electron's userData path).
+electron_debug.log
+electron_final.log

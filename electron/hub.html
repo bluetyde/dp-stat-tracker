@@ -1,0 +1,452 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Due Process Tracker</title>
+<link rel="stylesheet" href="theme.css" />
+<style>
+  body {
+    min-height: 100vh;
+    min-width: 960px;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    font-size: 14px;
+  }
+
+  aside {
+    border-right: 1px solid var(--border-soft);
+    background: #0a0d10;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    padding: 26px 0;
+  }
+  .brand {
+    padding: 0 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .brand .name {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-bright);
+  }
+  .brand .name .accent { color: var(--accent); }
+  .brand .ver {
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 22px;
+    border-left: 2px solid transparent;
+    color: #8b98a5;
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255, 255, 255, 0.03); }
+  .nav-item .nav-dot {
+    width: 6px;
+    height: 6px;
+    display: block;
+    border: 1px solid #48545f;
+    background: transparent;
+  }
+  .nav-item.active {
+    border-left-color: var(--accent);
+    background: rgba(127, 182, 232, 0.09);
+    color: #eaf2fa;
+  }
+  .nav-item.active .nav-dot { background: var(--accent); border-color: var(--accent); }
+  .log-source {
+    margin-top: auto;
+    padding: 0 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  main {
+    padding: 34px 40px 56px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    min-width: 0;
+  }
+  header.page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 18px;
+  }
+  header.page-head h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 40px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-bright);
+    line-height: 1;
+  }
+  #refreshBtn {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: #0d1013;
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 9px 16px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  #refreshBtn:hover { background: var(--accent-bright); }
+
+  #statGrid { grid-template-columns: repeat(6, 1fr); }
+
+  .win-rate-bar {
+    display: flex;
+    height: 3px;
+    background: var(--border);
+    margin-top: 2px;
+  }
+  .win-rate-bar > span { background: var(--accent); display: block; }
+
+  .content-cols {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 28px;
+    align-items: start;
+    min-width: 0;
+  }
+  h2.section-title {
+    margin: 0 0 14px;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #cfd9e2;
+  }
+
+  .weapon-row { display: flex; flex-direction: column; gap: 6px; }
+  .weapon-row .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .weapon-row .wname { font-family: var(--font-display); font-size: 17px; letter-spacing: 0.1em; text-transform: uppercase; color: #eaf0f6; }
+  .weapon-row .wkills { font-family: var(--font-display); font-size: 17px; color: var(--accent); }
+  .weapon-bar { height: 3px; background: #1a2128; }
+  .weapon-bar > span { display: block; height: 3px; background: var(--accent); }
+
+  #sparkline { display: flex; gap: 3px; align-items: flex-end; height: 44px; }
+  #sparkline > span { flex: 1; display: block; }
+
+  /* Shared empty-state treatment — reused across Home's "no data at all"
+     message and each History view's own "no matches in this archive yet". */
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--text-muted); }
+
+  table.rows tbody tr { cursor: pointer; }
+  table.rows tbody tr:hover { background: rgba(127, 182, 232, 0.06); }
+
+  .delete-match-btn {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-faint);
+    font-size: 14px;
+    line-height: 1;
+    padding: 4px 7px;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .delete-match-btn:hover { border-color: var(--loss); color: var(--loss); background: rgba(209, 86, 94, 0.1); }
+
+  /* Tags a row on Home's unified feed as coming from the ranked or other
+     archive — same visual pattern as theme.css's .inferred-badge, own
+     colors so the two kinds of tag read as visually distinct. Only used on
+     Home; the two History views are already scoped to one archive each. */
+  .source-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 6px;
+    font-family: var(--font-display);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    border-radius: 2px;
+    vertical-align: middle;
+  }
+  .source-badge--ranked { color: var(--accent); border: 1px solid var(--accent); }
+  .source-badge--other { color: var(--text-muted); border: 1px solid var(--text-muted); }
+
+  #rankedHistoryView .panel, #otherHistoryView .panel { max-width: 900px; }
+
+  /* homeView / rankedHistoryView / otherHistoryView are the elements
+     hub-renderer.js toggles `hidden` on to switch views. Deliberately no
+     `display` rule on any of them (they're plain flex children of <main>,
+     which is display:flex;flex-direction:column already) — an
+     unconditional author `display` on a hidden-toggled element is exactly
+     the bug already found and fixed once on #matchDetailBackdrop below;
+     not reintroducing it here by simply never adding one. */
+
+  /* Match-detail view — a click-through from a Recent Matches row, reusing
+     the exact Overlay Scoreboard design (scoreboard-view.js / theme.css's
+     .scoreboard-teams classes) rather than a new layout. Reads entirely
+     from that match's archived record, so it works even after the source
+     log has rotated away. */
+  #matchDetailBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 7, 9, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    z-index: 10;
+  }
+  /* The unconditional `display: flex` above overrides the browser's default
+     `[hidden] { display: none }` UA rule — author stylesheets always win
+     over UA stylesheets regardless of specificity, so the hidden attribute
+     alone did nothing here even though hub-renderer.js was toggling it
+     correctly. This restores hidden's priority instead of switching this
+     one element to a class-based state, since hidden is what every other
+     show/hide toggle in this codebase already uses (#teams/#empty in
+     overlay.html, #emptyHub/#statGrid in hub-renderer.js). */
+  #matchDetailBackdrop[hidden] {
+    display: none !important;
+  }
+  #matchDetailCard {
+    position: relative;
+    width: 1120px;
+    /* max-width:100% alone isn't enough here: flex items default to
+       min-width:auto, which (like the bare-fr grid tracks fixed in
+       theme.css) imposes an implicit content-based minimum that wins over
+       max-width. min-width:0 removes that floor so the cap actually holds
+       at any Hub window size, down to hub.html's own min-width:960px. */
+    min-width: 0;
+    max-width: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden; /* belt-and-suspenders: with the grid fix above, columns should never need to scroll horizontally at all */
+    background: rgba(9, 12, 15, 0.97);
+    border: 1px solid rgba(127, 182, 232, 0.28);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+  #matchDetailHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(127, 182, 232, 0.2);
+    background: rgba(127, 182, 232, 0.05);
+  }
+  #matchDetailHeader .title {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  #matchDetailHeader .meta {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #7d8b99;
+  }
+  #matchDetailClose {
+    background: none;
+    border: 1px solid #2b353f;
+    color: #9aa7b4;
+    font-family: var(--font-display);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  #matchDetailClose:hover { border-color: var(--accent); color: var(--text); }
+  #matchDetailDelete {
+    background: none;
+    border: 1px solid #4a2c30;
+    color: #d1565e;
+    font-family: var(--font-display);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  #matchDetailDelete:hover { border-color: var(--loss); background: rgba(209, 86, 94, 0.12); }
+</style>
+</head>
+<body>
+  <aside>
+    <div class="brand">
+      <div class="name">Due<span class="accent">Process</span></div>
+      <div class="ver">Tracker v0.4</div>
+    </div>
+    <nav>
+      <div class="nav-item active" data-view="home"><span class="nav-dot"></span>Home</div>
+      <div class="nav-item" data-view="ranked"><span class="nav-dot"></span>Ranked History</div>
+      <div class="nav-item" data-view="other"><span class="nav-dot"></span>Other History</div>
+    </nav>
+    <div class="log-source">
+      <div class="kicker">Log source</div>
+      <div class="panel" style="padding:12px">
+        <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+        <div class="display" style="font-size:14px">Player.log</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="logStatus">Watching</div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="homeView">
+    <header class="page-head">
+      <div>
+        <div class="kicker">Career overview</div>
+        <h1 id="playerName">—</h1>
+      </div>
+      <button id="refreshBtn">Refresh</button>
+    </header>
+
+    <div id="hubBody">
+      <div id="emptyHub" class="empty-state">No completed matches recorded yet. Play a match with the overlay running and it'll show up here.</div>
+
+      <section class="stat-grid" id="statGrid" hidden>
+        <div class="stat-tile">
+          <div class="stat-label">Total Kills</div>
+          <div class="stat-value" id="statKills">0</div>
+          <div class="stat-sub" id="statKillsSub"></div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">Total Deaths</div>
+          <div class="stat-value" id="statDeaths">0</div>
+          <div class="stat-sub"></div>
+        </div>
+        <div class="stat-tile stat-tile--accent">
+          <div class="stat-label">KDR</div>
+          <div class="stat-value" id="statKdr">0.00</div>
+          <div class="stat-sub"></div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">Wins</div>
+          <div class="stat-value" id="statWins">0</div>
+          <div class="stat-sub" id="statWinsSub"></div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">Losses</div>
+          <div class="stat-value" id="statLosses">0</div>
+          <div class="stat-sub" id="statLossesSub"></div>
+        </div>
+        <div class="stat-tile stat-tile--accent">
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-value" id="statWinRate">0<span style="font-size:26px;color:var(--accent-dim)">%</span></div>
+          <div class="win-rate-bar"><span id="statWinRateBar" style="width:0%"></span></div>
+        </div>
+      </section>
+
+      <section class="content-cols" style="margin-top:30px" id="detailCols" hidden>
+        <div style="min-width:0">
+          <h2 class="section-title">Recent Matches</h2>
+          <div class="panel">
+            <table class="rows">
+              <thead>
+                <tr><th>Result</th><th>Map</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
+              </thead>
+              <tbody id="recentMatchesBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <h2 class="section-title" style="margin-bottom:0">Top Weapons</h2>
+          <div class="panel" style="padding:18px 18px 20px;display:flex;flex-direction:column;gap:16px" id="topWeapons">
+            <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+          </div>
+
+          <div class="panel" style="padding:18px;display:flex;flex-direction:column;gap:12px">
+            <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+            <div class="kicker">Recent matches</div>
+            <div id="sparkline"></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted)">
+              <span>Kills per match</span><span id="sparklineAvg" style="color:var(--text)"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    </div>
+
+    <div id="rankedHistoryView" hidden>
+      <header class="page-head">
+        <div>
+          <div class="kicker">Full history</div>
+          <h1>Ranked History</h1>
+        </div>
+      </header>
+      <div id="rankedHistoryEmpty" class="empty-state" hidden>No ranked matches recorded yet.</div>
+      <div class="panel" id="rankedHistoryPanel" hidden style="margin-top:24px">
+        <table class="rows">
+          <thead>
+            <tr><th>Result</th><th>Map</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
+          </thead>
+          <tbody id="rankedHistoryBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="otherHistoryView" hidden>
+      <header class="page-head">
+        <div>
+          <div class="kicker">Full history</div>
+          <h1>Other History</h1>
+        </div>
+      </header>
+      <div id="otherHistoryEmpty" class="empty-state" hidden>No other matches recorded yet.</div>
+      <div class="panel" id="otherHistoryPanel" hidden style="margin-top:24px">
+        <table class="rows">
+          <thead>
+            <tr><th>Result</th><th>Map</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
+          </thead>
+          <tbody id="otherHistoryBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div id="matchDetailBackdrop" hidden>
+    <section id="matchDetailCard" class="panel">
+      <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+      <header id="matchDetailHeader">
+        <div style="display:flex;align-items:center;gap:14px">
+          <span class="title">Match Detail</span>
+          <span class="meta" id="matchDetailMap"></span>
+          <span class="meta" id="matchDetailMeta"></span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="matchDetailDelete">Delete Match</button>
+          <button id="matchDetailClose">Close</button>
+        </div>
+      </header>
+      <div id="matchDetailTeams" class="scoreboard-teams"></div>
+    </section>
+  </div>
+
+  <script src="scoreboard-view.js"></script>
+  <script src="hub-renderer.js"></script>
+</body>
+</html>

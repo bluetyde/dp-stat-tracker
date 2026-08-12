@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Due Process Match Scoreboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <h1>Due Process Match Scoreboard</h1>
+
+    <div id="dropZone" class="drop-zone">
+      <p>Drag &amp; drop a <code>Player.log</code> file here, or</p>
+      <label class="file-button">
+        Choose file
+        <input type="file" id="fileInput" accept=".log,.txt" hidden />
+      </label>
+      <p id="fileName" class="file-name"></p>
+    </div>
+
+    <div id="matchPicker" class="match-picker" hidden>
+      <label for="matchSelect">Match:</label>
+      <select id="matchSelect"></select>
+    </div>
+
+    <div id="warnings" class="warnings" hidden></div>
+
+    <div id="scoreboard" class="scoreboard"></div>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

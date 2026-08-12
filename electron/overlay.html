@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Due Process Overlay</title>
+<link rel="stylesheet" href="theme.css" />
+<style>
+  html, body {
+    background: transparent;
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    padding: 0;
+    -webkit-app-region: no-drag;
+  }
+  #card {
+    position: relative;
+    width: 100%;
+    background: rgba(9, 12, 15, 0.88);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(127, 182, 232, 0.28);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    font-size: 13px;
+  }
+  #card > .corner {
+    position: absolute;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--accent);
+  }
+  #card > .corner.tl { top: -6px; left: -5px; }
+  #card > .corner.tr { top: -6px; right: -5px; }
+  #card > .corner.bl { bottom: -7px; left: -5px; }
+  #card > .corner.br { bottom: -7px; right: -5px; }
+
+  #dragHeader {
+    -webkit-app-region: drag;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 9px 16px;
+    border-bottom: 1px solid rgba(127, 182, 232, 0.2);
+    background: rgba(127, 182, 232, 0.05);
+  }
+  #dragHeader .title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  #dragHeader .meta {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #7d8b99;
+  }
+  #dragHeader .hint {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #556472;
+  }
+
+  #footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 16px;
+    border-top: 1px solid rgba(127, 182, 232, 0.2);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #66757f;
+  }
+  #empty {
+    padding: 40px 20px;
+    text-align: center;
+    font-size: 13px;
+    color: #7d8b99;
+  }
+</style>
+</head>
+<body>
+  <section id="card" class="panel">
+    <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+    <header id="dragHeader">
+      <span class="title">DueProcess Tracker</span>
+      <span class="meta" id="mapLabel"></span>
+      <span class="meta" id="roundLabel"></span>
+      <span class="hint">Alt+&#96; to hide</span>
+    </header>
+    <div id="teams" class="scoreboard-teams"></div>
+    <div id="empty" hidden>Waiting for a match&hellip;</div>
+    <footer id="footer">ADR = damage per round &middot; KAST = rounds with kill, assist, survival or trade</footer>
+  </section>
+  <script src="scoreboard-view.js"></script>
+  <script src="overlay-renderer.js"></script>
+</body>
+</html>
