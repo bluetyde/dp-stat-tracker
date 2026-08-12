@@ -1,10 +1,12 @@
 # Due Process Scoreboard & Stat Tracker — Project Summary & Changelog (v0.5)
 
-This document provides a comprehensive overview of all architectural improvements, UI redesigns, data aggregation pipelines, log parsing fixes, and Git push history made to the **Due Process Stat Tracker** (`dp-stat-tracker`).
+This document provides a comprehensive overview of all architectural improvements, UI redesigns, data aggregation pipelines, log parsing fixes, and commit history made to the **Due Process Stat Tracker** (`dp-stat-tracker`) from initial release through V0.5.
+
+**Repository**: [`bluetyde/dp-stat-tracker`](https://github.com/bluetyde/dp-stat-tracker) · **Branch**: `main` · **Version**: `Tracker v0.5`
 
 ---
 
-## 🚀 Overview of Version 0.5 Enhancements
+## ðŸš€ Overview of Version 0.5 Enhancements
 
 ### 1. UI & Formatting Polishing
 - **Tracker Version Bump**: Updated sidebar version brand from `Tracker v0.4` $\rightarrow$ **`Tracker v0.5`**.
@@ -38,14 +40,14 @@ This document provides a comprehensive overview of all architectural improvement
 - **Real-Time Steam Profile Pictures (Avatars)**:
   - Fetches real high-res Steam profile picture avatars via `hub:get-steam-avatar` IPC using `https://steamcommunity.com/profiles/<accountId>?xml=1`.
   - Renders avatar icons in the **Played With** table and inside the **Player Quick Reference Modal**.
-  - Includes **`STEAM PROFILE ↗`** action buttons opening `https://steamcommunity.com/profiles/<accountId>` in the user's default browser.
+  - Includes **`STEAM PROFILE â†—`** action buttons opening `https://steamcommunity.com/profiles/<accountId>` in the user's default browser.
 
 ---
 
 ### 4. Weapons Fandom Wiki Integration & Canonical Categories
 - **Official Due Process Wiki Links & High-Res Weapon Images**:
   - Scraped weapon URLs (`https://dueprocess.fandom.com/wiki/<Weapon>`) and high-res PNG image assets from the [Official Due Process Wiki](https://dueprocess.fandom.com/wiki/Weapons).
-  - Hyperlinked weapon titles and thumbnail images with `↗` across the **Weapons** tab and Home tab **Top Weapons** cards.
+  - Hyperlinked weapon titles and thumbnail images with `â†—` across the **Weapons** tab and Home tab **Top Weapons** cards.
 - **Renamed Weapon AK References**:
   - **`Mini AK`** $\rightarrow$ **`KR82U`**
   - **`Big AK`** $\rightarrow$ **`KR82M`**
@@ -68,19 +70,36 @@ This document provides a comprehensive overview of all architectural improvement
 
 ---
 
-## 🛠️ GitHub Repository & Git Push Summary
+### 6. Infrastructure & Stability
+- **App Name Initialization**: Added `app.setName('due-process-scoreboard')` at the top of `electron/main.js` so `app.getPath('userData')` resolves deterministically to `C:\Users\<user>\AppData\Roaming\due-process-scoreboard` on all machines, independent of working directory or launch context.
+- **Hotkey Conflict Fix**: Changed `OVERLAY_HOTKEY` from `` Alt+` `` to `Alt+F9` in `electron/config.js` to avoid system-level shortcut conflicts.
+- **Renderer Update Listener Fix** (`e18c7ff`): Resolved a top-level `ReferenceError: mapTilesetFiltersEl is not defined` in `hub-renderer.js` that caused the renderer script to crash during initialization — silently preventing `window.hubAPI.onUpdate(render)` from ever registering. This left Home, Weapons, Maps, and Played With showing empty `0` stats while Ranked History (which uses a separate direct IPC call path) continued to work. Fixed by declaring `const mapTilesetFiltersEl = document.getElementById('mapTilesetFilters')` alongside the other maps-section DOM references.
 
-All modifications have been committed and pushed to the main repository:
+---
 
-- **Repository**: [`bluetyde/dp-stat-tracker`](https://github.com/bluetyde/dp-stat-tracker)
-- **Branch**: `main`
+## 🛠️ Git Commit History
 
-### Modified Files:
-1. `stats.js` — Weapon metadata, KR82U/KR82M names, canonical categories, wiki & image URLs.
-2. `parser.js` — Log regex matching for maps, rounds, and player rosters.
-3. `electron/match-archive.js` — Player roster aggregation, map notes persistence, map layout summaries.
-4. `electron/rescan.js` — Round map alignment & durability rescan logic.
-5. `electron/main.js` — Steam avatar IPC handler, payload property alignment, external URL opener, map notes handler.
-6. `electron/preload.js` — Exposed `getSteamAvatar`, `saveMapNote`, `openExternal`, and history API methods.
-7. `electron/hub.html` — Version bump (Tracker v0.5), Played With view, 5x1 Maps grid CSS, Map History modal.
-8. `electron/hub-renderer.js` — Renderer for Played With, Weapons Fandom Wiki links, Steam avatars, and map layout notes & history modal.
+| Commit | Description |
+|--------|-------------|
+| `e18c7ff` | fix: Declare `mapTilesetFiltersEl` — resolves ReferenceError blocking renderer update listener (Home/Weapons/Maps/Played With all zeros) |
+| `7acbdd0` | fix: Set `app.setName('due-process-scoreboard')` so userData path consistently resolves to AppData/Roaming |
+| `abe0862` | fix: Resolve global shortcut conflict (Alt+F9), enforce non-OneDrive userData path |
+| `d8098f9` | feat(v0.5): Maps tab redesign, auto-saving notes/tags, map history drilldown, silent inferred tags, K-D-A nowrap, Tracker v0.5 branding |
+| `2439263` | feat: Played With tab, Steam profile pictures, Fandom weapon wiki links, 5x1 maps stat row, canonical weapon categories |
+| `ce5e94e` | Initial commit: Due Process log-tailing scoreboard overlay and Hub |
+
+---
+
+## 📁 Modified Files (V0.5 Total)
+
+| File | Changes |
+|------|---------|
+| `stats.js` | Weapon metadata, KR82U/KR82M renames, canonical 7 categories, Fandom wiki URLs & image CDN links |
+| `parser.js` | Log regex for round maps, map tilesets, and player rosters |
+| `electron/match-archive.js` | Cross-match player aggregation by `accountId`, DPL ratings, per-map layout stats, map notes persistence |
+| `electron/rescan.js` | Round map array alignment, legacy re-scan durability logic |
+| `electron/config.js` | `OVERLAY_HOTKEY` changed to `Alt+F9` |
+| `electron/main.js` | `app.setName()`, Steam avatar IPC handler, map note save IPC handler, external URL opener |
+| `electron/preload.js` | Exposed: `getSteamAvatar`, `saveMapNote`, `openExternal`, `getPlayerDetail`, `getRankedHistory`, `getOtherHistory` |
+| `electron/hub.html` | V0.5 branding, Played With view, Player detail modal, Map history modal, 5x1 stat grid |
+| `electron/hub-renderer.js` | Played With table/modal, Weapons wiki links & images, Steam avatars, Map layout table, notes input, map history drilldown, `mapTilesetFiltersEl` declaration fix |
