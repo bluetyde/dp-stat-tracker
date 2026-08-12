@@ -547,6 +547,11 @@ function handleOpenSteamProfile(_event, accountId) {
 }
 ipcMain.handle('hub:open-steam-profile', handleOpenSteamProfile);
 
+// Full (uncapped) match lists for the Ranked History / Other History nav
+// views — deliberately separate from hub:update's regular payload (which
+// stays capped at getRecentMatches(8) for the Home feed) so switching to a
+// history view doesn't inflate every routine push once an archive grows
+// into the hundreds of matches. Fetched on demand when the view is opened.
 ipcMain.handle('hub:get-ranked-history', () => {
   return rankedArchive.getRecentMatches(Number.MAX_SAFE_INTEGER);
 });
@@ -554,6 +559,15 @@ ipcMain.handle('hub:get-other-history', () => {
   return otherArchive.getRecentMatches(Number.MAX_SAFE_INTEGER);
 });
 
+// Delete a match from whichever archive it lives in, then push fresh
+// (re-derived, since totals are summed on read) totals/lists to the Hub.
+//
+// FLAGGED BEHAVIOR: dedup (hasRecordedMatch) only ever looks at what's
+// CURRENTLY in the archive files. Deleting an entry makes that MatchId
+// "unseen" again — if it's still reachable in Player.log or Player-prev.log
+// the next time a scan runs, it WILL be re-recorded. This is a deliberate
+// consequence of archive-state-based dedup (see match-archive.js's
+// deleteMatch doc comment), not prevented or specially handled here.
 ipcMain.handle('hub:delete-match', (_event, matchId) => {
   const deleted = rankedArchive.deleteMatch(matchId) || otherArchive.deleteMatch(matchId);
   if (deleted) sendHubUpdate();

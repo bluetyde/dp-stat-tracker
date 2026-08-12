@@ -144,13 +144,18 @@ function render(data) {
   if (currentView === 'maps') renderMapsTable();
   if (currentView === 'liveMatch') renderLiveMatch();
 
-  // Unlike ranked/other history, weaponStats rides along on every regular
-  // hub:update push (main.js's rankedArchive.getWeaponStats() output is
-  // small — bounded by the number of distinct weapon codes, not match
+  // Unlike ranked/other history, weaponStats and playedWith/playedWithStats
+  // ride along on every regular hub:update push (their output is small —
+  // bounded by distinct weapon codes / players encountered, not match
   // count) — so there's no on-demand fetch here, just a re-render from
   // whatever's already in `data`. Kept live and current in the DOM even
-  // while the Weapons view is hidden, same reasoning as the stat tiles.
+  // while their views are hidden, same reasoning as the stat tiles. (Today,
+  // a delete can only ever be triggered from Home/History/match-detail —
+  // never while Weapons/Played With/Maps is the active view — so this
+  // mainly guards against that changing later, not a currently-reachable
+  // staleness path.)
   renderWeaponsTable();
+  renderPlayedWithTable();
 }
 
 // ---------------------------------------------------------------------
