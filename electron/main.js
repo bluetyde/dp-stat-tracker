@@ -13,6 +13,8 @@ const { exec } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, screen, globalShortcut, ipcMain, shell } = require('electron');
 
+app.setName('due-process-scoreboard');
+
 const config = require('./config');
 const { MatchArchive } = require('./match-archive');
 const { findLocalAccountId } = require('./local-player');
@@ -482,11 +484,6 @@ async function main() {
   deriveFinalScoreFromRounds = parserModule.deriveFinalScoreFromRounds;
   computeMatchStats = statsModule.computeMatchStats;
   parser = new DueProcessLogParser();
-
-  // Force userData path to a fixed non-OneDrive location in %APPDATA% so Chromium's
-  // cache never collides with OneDrive file-sync locks regardless of workspace location.
-  const customUserDataPath = path.join(app.getPath('appData'), 'due-process-scoreboard');
-  app.setPath('userData', customUserDataPath);
 
   // Step 1: load both archives directly — match-archive.json is the totals
   // source of truth (match-archive.js sums it on read), so the Hub can show
