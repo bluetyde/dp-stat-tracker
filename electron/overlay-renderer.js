@@ -8,8 +8,20 @@ const teamsEl = document.getElementById('teams');
 const emptyEl = document.getElementById('empty');
 const mapLabelEl = document.getElementById('mapLabel');
 const roundLabelEl = document.getElementById('roundLabel');
+const hotkeyHintEl = document.getElementById('hotkeyHint');
+
+function formatHotkeyDisplay(hk) {
+  if (!hk) return 'Ctrl+Shift+Y';
+  return hk
+    .replace(/CommandOrControl/i, 'Ctrl')
+    .replace(/Control/i, 'Ctrl');
+}
 
 function render(data) {
+  if (data && data.overlayHotkey && hotkeyHintEl) {
+    hotkeyHintEl.textContent = `${formatHotkeyDisplay(data.overlayHotkey)} to hide`;
+  }
+
   if (!data || !data.teams || (data.teams[0].length === 0 && data.teams[1].length === 0)) {
     teamsEl.hidden = true;
     emptyEl.hidden = false;

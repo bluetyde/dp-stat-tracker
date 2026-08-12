@@ -279,32 +279,33 @@ async function startLogTailing() {
 // ---------------------------------------------------------------------
 
 function onParserUpdate() {
-  const matches = parser.getMatches();
-  if (matches.length === 0) return;
-
+  const matches = parser ? parser.getMatches() : [];
   const accountId = localAccountId || rankedArchive.getLocalAccountId();
   let recordedAny = false;
-  for (const match of parser.matches) {
-    if (recordCompletedMatch(match, { rankedArchive, otherArchive, computeMatchStats, mapTracker, accountId })) {
-      recordedAny = true;
+  if (parser) {
+    for (const match of parser.matches) {
+      if (recordCompletedMatch(match, { rankedArchive, otherArchive, computeMatchStats, mapTracker, accountId })) {
+        recordedAny = true;
+      }
     }
   }
   if (recordedAny) sendHubUpdate();
 
-  const latest = matches[matches.length - 1];
-  const stats = computeMatchStats(latest);
+  const latest = matches.length > 0 ? matches[matches.length - 1] : null;
+  const stats = latest ? computeMatchStats(latest) : null;
   sendOverlayUpdate(latest, stats);
 }
 
 function sendOverlayUpdate(match, stats) {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
   overlayWindow.webContents.send('overlay:update', {
-    status: match.status,
-    finalScore: stats.finalScore,
-    roundCount: stats.roundCount,
-    teams: stats.teams,
+    status: match?.status ?? 'waiting',
+    finalScore: stats?.finalScore ?? null,
+    roundCount: stats?.roundCount ?? 0,
+    teams: stats?.teams ?? { 0: [], 1: [] },
     currentMap: mapTracker.peekCurrent().at(-1)?.label ?? null,
     localAccountId: localAccountId || rankedArchive.getLocalAccountId(),
+    overlayHotkey: config.OVERLAY_HOTKEY,
   });
 }
 
@@ -611,8 +612,10 @@ async function main() {
   hubWindow.webContents.once('did-finish-load', () => sendHubUpdate());
 
   const registered = globalShortcut.register(config.OVERLAY_HOTKEY, toggleOverlayManually);
-  if (!registered) {
-    console.warn(`Could not register global shortcut ${config.OVERLAY_HOTKEY} — it may be in use by another app.`);
+  if (registered) {
+    console.log(`Successfully registered global overlay hotkey: ${config.OVERLAY_HOTKEY}`);
+  } else {
+    console.warn(`FAILED to register global overlay hotkey ${config.OVERLAY_HOTKEY} — it may be in use by another app.`);
   }
 
   startGameDetection();

@@ -29,11 +29,8 @@ module.exports = {
   // How often to check `tasklist` for the game process.
   GAME_POLL_INTERVAL_MS: 4000,
 
-  // Manual overlay show/hide toggle. Alt+` has no common Windows/browser
-  // conflict, but backtick is the conventional dev-console key in a lot of
-  // Unity-based games (Due Process is built on Unity) — this is Alt+backtick,
-  // not bare backtick, so a collision with a bare-key console bind is
-  // unlikely, but not confirmed one way or the other. Watch for it in-game;
-  // change here if it turns out to clash.
-  OVERLAY_HOTKEY: 'Alt+F9',
+  // Manual overlay show/hide toggle. Control+Shift+Y is used to avoid
+  // conflicts with terminal shortcuts (e.g. Quake-mode backtick keybinds),
+  // browser shortcuts, or in-game hotkeys.
+  OVERLAY_HOTKEY: 'Control+Shift+Y',
 };
