@@ -256,6 +256,11 @@ let selectedMapTileset = 'all';
 let mapSortKey = 'timesPlayed';
 let mapSortDir = 'desc';
 
+// Fixed quick-tag set for the Maps tab's per-map pill selector — additive
+// to the free-text Notes field (mapNotes), not a replacement. Persisted
+// separately as match-archive.js's mapTags, same keyed-by-mapName shape.
+const MAP_TAGS = ['Sniper', 'Defense-Heavy', 'Offense-Heavy', 'Good W-Charge', 'Nade Needed', 'Door Needed'];
+
 function renderMapsTable() {
   const mapData = latestHubData?.mapStats ?? { mapSummary: [], tilesetSummary: [], everyMap: [] };
   const mapSummary = mapData.mapSummary ?? [];
@@ -316,11 +321,14 @@ function renderMapsTable() {
       </td>
       <td style="text-align:left" onclick="event.stopPropagation()">
         <input type="text" class="map-note-input" data-mapname="${escapeHtml(m.mapName)}" value="${escapeHtml(m.note || '')}" placeholder="Add custom notes..." style="background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--text-bright);font-family:var(--font-body);font-size:12px;padding:5px 9px;border-radius:2px;width:92%;outline:none" />
+        <div class="map-tag-pills" data-mapname="${escapeHtml(m.mapName)}">
+          ${MAP_TAGS.map((t) => `<button type="button" class="map-tag-pill${(m.tags || []).includes(t) ? ' active' : ''}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}
+        </div>
       </td>
     `;
 
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.map-note-input')) return;
+      if (e.target.closest('.map-note-input') || e.target.closest('.map-tag-pills')) return;
       openMapHistory(m);
     });
 
@@ -335,6 +343,22 @@ function renderMapsTable() {
       noteInput.addEventListener('change', handleSave);
       noteInput.addEventListener('blur', handleSave);
     }
+
+    // Tag pills auto-save the same way the notes input does — no separate
+    // "confirm" step, just persist on interaction (a click here, change/blur
+    // for the text input above). Always sends the full currently-active tag
+    // set for this map, not a single add/remove delta — see
+    // match-archive.js's saveMapTags doc comment.
+    const tagPillsEl = tr.querySelector('.map-tag-pills');
+    tagPillsEl?.querySelectorAll('.map-tag-pill').forEach((pill) => {
+      pill.addEventListener('click', () => {
+        pill.classList.toggle('active');
+        const selected = [...tagPillsEl.querySelectorAll('.map-tag-pill.active')].map((p) => p.dataset.tag);
+        if (window.hubAPI?.saveMapTags) {
+          window.hubAPI.saveMapTags(m.mapName, selected);
+        }
+      });
+    });
 
     mapsBodyEl.appendChild(tr);
   }
@@ -711,19 +735,30 @@ playerDetailBackdrop?.addEventListener('click', (e) => {
   if (e.target === playerDetailBackdrop) playerDetailBackdrop.hidden = true;
 });
 
-// CSV Export Handler
-document.getElementById('exportCsvBtn')?.addEventListener('click', async () => {
-  const csvText = await window.hubAPI.exportCsv();
+// CSV Export Handlers — one download helper shared by Home's export button
+// (ranked, unchanged behavior) and the Ranked/Other History views' buttons.
+async function triggerCsvDownload(which, filenamePrefix) {
+  const csvText = await window.hubAPI.exportCsv(which);
   if (!csvText) return;
   const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `due-process-match-history-${Date.now()}.csv`;
+  a.download = `${filenamePrefix}-${Date.now()}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+document.getElementById('exportCsvBtn')?.addEventListener('click', () => {
+  triggerCsvDownload(undefined, 'due-process-match-history');
+});
+document.getElementById('exportRankedHistoryCsvBtn')?.addEventListener('click', () => {
+  triggerCsvDownload('ranked', 'due-process-ranked-history');
+});
+document.getElementById('exportOtherHistoryCsvBtn')?.addEventListener('click', () => {
+  triggerCsvDownload('other', 'due-process-other-history');
 });
 
 // ---------------------------------------------------------------------
@@ -1062,3 +1097,10 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
 
 window.hubAPI.onUpdate(render);
 window.hubAPI.requestRefresh();
+
+// Overlay click-through (see overlay-renderer.js / main.js's
+// 'overlay:open-player-detail'). The modal is a backdrop over whatever's
+// currently showing, so it opens in place — no need to force-switch views.
+window.hubAPI.onShowPlayerDetail((accountId) => {
+  openPlayerDetail(accountId);
+});

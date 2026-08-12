@@ -216,6 +216,40 @@
     border-color: var(--accent);
     color: var(--text-bright);
   }
+  /* Per-map quick-tag pills (Maps tab) — same visual language as .cat-pill
+     above, scaled down to fit several per table cell alongside the notes
+     input. Unlike .cat-pill's single-select filter groups elsewhere in the
+     Hub, any number of these can be .active at once per map (see
+     hub-renderer.js's tag click handler). */
+  .map-tag-pills {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .map-tag-pill {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-soft);
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s ease;
+  }
+  .map-tag-pill:hover {
+    color: var(--text-bright);
+    border-color: var(--accent-dim);
+    background: rgba(127, 182, 232, 0.06);
+  }
+  .map-tag-pill.active {
+    background: rgba(127, 182, 232, 0.14);
+    border-color: var(--accent);
+    color: var(--text-bright);
+  }
   .weapon-search-box input {
     background: #090c0f;
     border: 1px solid var(--border);
@@ -658,6 +692,7 @@
           <div class="kicker">Full history</div>
           <h1>Ranked History</h1>
         </div>
+        <button class="export-btn" id="exportRankedHistoryCsvBtn">Export CSV</button>
       </header>
       <div id="rankedHistoryEmpty" class="empty-state" hidden>No ranked matches recorded yet.</div>
       <div class="panel" id="rankedHistoryPanel" hidden style="margin-top:24px">
@@ -676,6 +711,7 @@
           <div class="kicker">Full history</div>
           <h1>Other History</h1>
         </div>
+        <button class="export-btn" id="exportOtherHistoryCsvBtn">Export CSV</button>
       </header>
       <div id="otherHistoryEmpty" class="empty-state" hidden>No other matches recorded yet.</div>
       <div class="panel" id="otherHistoryPanel" hidden style="margin-top:24px">

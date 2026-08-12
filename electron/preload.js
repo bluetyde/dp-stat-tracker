@@ -9,11 +9,20 @@ contextBridge.exposeInMainWorld('overlayAPI', {
   onUpdate: (callback) => {
     ipcRenderer.on('overlay:update', (_event, payload) => callback(payload));
   },
+  // Fire-and-forget: main.js ensures/focuses the Hub window and pushes it
+  // 'hub:show-player-detail' in response. See main.js's
+  // 'overlay:open-player-detail' handler.
+  openPlayerDetail: (accountId) => ipcRenderer.send('overlay:open-player-detail', accountId),
 });
 
 contextBridge.exposeInMainWorld('hubAPI', {
   onUpdate: (callback) => {
     ipcRenderer.on('hub:update', (_event, payload) => callback(payload));
+  },
+  // Pushed by main.js when the overlay's click-through (see overlayAPI.openPlayerDetail)
+  // asks the Hub to show a specific player's Quick Reference modal.
+  onShowPlayerDetail: (callback) => {
+    ipcRenderer.on('hub:show-player-detail', (_event, accountId) => callback(accountId));
   },
   requestRefresh: () => ipcRenderer.send('hub:request-refresh'),
   // Full archived scoreboard for one match (both teams, every player) —
@@ -29,8 +38,12 @@ contextBridge.exposeInMainWorld('hubAPI', {
   getOtherHistory: () => ipcRenderer.invoke('hub:get-other-history'),
   getPlayerDetail: (accountId) => ipcRenderer.invoke('hub:get-player-detail', accountId),
   getSteamAvatar: (accountId) => ipcRenderer.invoke('hub:get-steam-avatar', accountId),
-  exportCsv: () => ipcRenderer.invoke('hub:export-csv'),
+  // `which` is optional — 'ranked' (default), or 'other' for the otherArchive.
+  exportCsv: (which) => ipcRenderer.invoke('hub:export-csv', which),
   saveMapNote: (mapName, note) => ipcRenderer.invoke('hub:save-map-note', mapName, note),
+  // `tags` is the full replacement array of selected tags for this map, not
+  // a single tag — see match-archive.js's saveMapTags doc comment.
+  saveMapTags: (mapName, tags) => ipcRenderer.invoke('hub:save-map-tags', mapName, tags),
   openExternal: (url) => ipcRenderer.invoke('hub:open-external', url),
   // Steam profile links specifically go through this instead of
   // openExternal above — takes a raw accountId, not a pre-built URL, so

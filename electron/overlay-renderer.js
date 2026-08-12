@@ -40,3 +40,16 @@ function render(data) {
 }
 
 window.overlayAPI.onUpdate(render);
+
+// Player click-through to the Hub's Player Quick Reference modal. Delegated
+// on the container (attached once) rather than per-row like hub-renderer.js's
+// attachPlayerClickHandlers, since render() above rebuilds `.player-row`
+// elements on every parser update (sub-second cadence during a live match) —
+// delegation means new rows are covered automatically without re-attaching
+// listeners on every render. Each row already carries data-account-id from
+// scoreboard-view.js.
+teamsEl.addEventListener('click', (e) => {
+  const row = e.target.closest('.player-row');
+  if (!row || !row.dataset.accountId) return;
+  window.overlayAPI.openPlayerDetail(row.dataset.accountId);
+});

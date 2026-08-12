@@ -334,21 +334,27 @@ function currentPlayerName() {
 function computeWinPrediction(teams, playedWithStats) {
   if (!teams || !teams[0] || !teams[1]) return null;
 
-  // NOTE: playedWithStats (rankedArchive.getPlayedWithStats()) deliberately
+  // playedWithStats (rankedArchive.getPlayedWithStats()) deliberately
   // excludes the local player (it's "who you've played with/against"), so
-  // playedWithMap never has an entry for either team's local-player row —
-  // that row's `?? 1.0` fallback below always fires, meaning the local
-  // player's own skill is never actually factored into their team's average
-  // rating here. Known gap, not fixed blindly: there's no existing
-  // aggregate of the local player's own kpr/adr/kast in the same shape
-  // dplRating below is built from, so a real fix needs that design decision
-  // made deliberately rather than guessed at here.
+  // playedWithMap never has an entry for either team's local-player row.
+  // Every other player's rating here is their stable lifetime aggregate from
+  // playedWithMap; without a special case, the local player would instead
+  // fall through to r.dplRating — the CURRENT live match's own in-progress
+  // rating (stats.js's calculateDplRating, recomputed every update from
+  // just this match's partial rounds), not a historical average. That's
+  // inconsistent with every teammate's rating source and noisy/unstable
+  // early in a match. Substitute the local player's own lifetime dplRating
+  // (same formula, computeDplRating in match-archive.js, fed their summed
+  // career stats — see getLifetimeStats()) so the comparison is apples-to-
+  // apples with everyone else's rating.
   const playedWithMap = new Map((playedWithStats ?? []).map((p) => [p.accountId, p.dplRating]));
+  const myAccountId = localAccountId || rankedArchive.getLocalAccountId();
+  const localRating = rankedArchive.getLifetimeStats().dplRating;
 
   const getTeamAvgRating = (teamRows) => {
     if (!teamRows || teamRows.length === 0) return 1.0;
     const sum = teamRows.reduce((acc, r) => {
-      const rating = playedWithMap.get(r.accountId) ?? r.dplRating ?? 1.0;
+      const rating = r.accountId === myAccountId ? localRating : playedWithMap.get(r.accountId) ?? r.dplRating ?? 1.0;
       return acc + rating;
     }, 0);
     return sum / teamRows.length;
@@ -493,12 +499,34 @@ ipcMain.handle('hub:get-player-detail', (_event, accountId) => {
   return rankedArchive.getSinglePlayedWith(accountId);
 });
 
+// Overlay -> Hub click-through: the overlay window can't open its own modal
+// (it has no such UI), so this ensures the Hub window exists, brings it
+// forward, and pushes the accountId over for hub-renderer.js's
+// onShowPlayerDetail listener to open via its own existing openPlayerDetail().
+ipcMain.on('overlay:open-player-detail', (_event, accountId) => {
+  if (!hubWindow || hubWindow.isDestroyed()) {
+    createHubWindow();
+    hubWindow.webContents.once('did-finish-load', () => {
+      hubWindow.webContents.send('hub:show-player-detail', accountId);
+    });
+  } else {
+    hubWindow.webContents.send('hub:show-player-detail', accountId);
+  }
+  hubWindow.show();
+  hubWindow.focus();
+});
+
 ipcMain.handle('hub:save-map-note', (_event, mapName, note) => {
   rankedArchive.saveMapNote(mapName, note);
 });
 
-ipcMain.handle('hub:export-csv', () => {
-  return rankedArchive.exportCsv();
+ipcMain.handle('hub:save-map-tags', (_event, mapName, tags) => {
+  rankedArchive.saveMapTags(mapName, tags);
+});
+
+ipcMain.handle('hub:export-csv', (_event, which) => {
+  const archive = which === 'other' ? otherArchive : rankedArchive;
+  return archive.exportCsv();
 });
 
 ipcMain.handle('hub:open-external', (_event, url) => {

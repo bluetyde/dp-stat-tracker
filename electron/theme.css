@@ -225,7 +225,53 @@ a:hover {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 .player-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.player-row .name { font-family: var(--font-display); font-size: 15px; color: var(--text); }
+/* .name is a flex row, not plain text directly: hub-renderer.js's
+   attachPlayerClickHandlers appends a .played-with-tag badge INSIDE .name
+   for non-local players (see its doc comment) — before this, that appended
+   badge shared .name's single overflow:hidden/ellipsis/nowrap box with the
+   actual name text, so a name that fit fine on its own (e.g. "milkyway",
+   "ThePostalDude") still got clipped once the badge's text pushed the
+   combined content past the column width (measured: at this column's real
+   ~114px budget, a typical "Teammate (Ng · N%)" badge alone needs ~105px —
+   there's rarely room for both at full size, so priority matters, not just
+   giving each its own truncation unit).
+   Splitting the name into its own .name-text child (see scoreboard-view.js)
+   gives it an independent unit to truncate — same underlying fix as the
+   minmax(0, Nfr) grid-track note above (flex/grid items default to a
+   content-based min-width that overflow can't override without
+   min-width: 0), one level deeper: .name-text needs its own min-width: 0 to
+   shrink inside the now-flex .name.
+   That alone isn't enough, though — plain even flex-shrink (1 and 1) starved
+   the name down to nothing because the tag (wider than the whole column)
+   demanded more space than the name and, being first in DOM order, ate the
+   name's share too. The tag's flex-shrink is deliberately extreme (9999 vs
+   .name-text's 1): CSS resolves shrinkage by iteratively freezing items at
+   their min-width (0, for both) and redistributing remaining deficit to
+   whatever's left unfrozen — an extreme ratio front-loads essentially all
+   shrinking onto the tag, so it silently shrinks toward 0 (invisible, not a
+   half-cut chip, since overflow:hidden clips it with nothing to show) and
+   only once it's fully gone does .name-text start giving up any of its own
+   width. Net effect: the name always wins whatever room exists; the tag is
+   the first and only thing sacrificed until the name itself is too long for
+   the full column on its own, at which point .name-text's own ellipsis
+   takes over exactly as it already did with no tag present. */
+.player-row .name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.player-row .name .name-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.player-row .name .played-with-tag {
+  flex: 0 9999 auto;
+  min-width: 0;
+}
 .player-row.is-you .name { color: var(--accent); }
 .num { text-align: right; font-family: var(--font-display); font-size: 15px; color: var(--text); }
 .ctr { text-align: center; font-family: var(--font-display); font-size: 15px; color: var(--text); }

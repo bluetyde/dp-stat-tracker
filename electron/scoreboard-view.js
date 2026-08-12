@@ -37,8 +37,14 @@ function renderScoreboardTeamColumn(teamIndex, label, roundWins, rows, localAcco
     // the live overlay or a Hub view.
     el.dataset.accountId = row.accountId;
     const bestWeapon = row.bestWeapon ? row.bestWeapon.label : '—';
+    // .name-text is a nested span, not just the name string directly inside
+    // .name, so attachPlayerClickHandlers's appended played-with-tag (a
+    // sibling of .name-text, not a child) gets its own truncation unit —
+    // see theme.css's .player-row .name comment for why sharing one
+    // ellipsis box between the name and the tag was truncating names that
+    // had plenty of room on their own.
     el.innerHTML = `
-      <span class="name">${scoreboardEscapeHtml(row.name)}</span>
+      <span class="name"><span class="name-text">${scoreboardEscapeHtml(row.name)}</span></span>
       <span class="num">${row.damage}</span>
       <span class="num">${row.adr.attack}-${row.adr.defense}</span>
       <span class="ctr">${row.kills}-${row.deaths}-${row.assists}</span>

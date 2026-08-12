@@ -486,6 +486,20 @@ class MatchArchive {
   }
 
   /**
+   * Structured quick-tags per map layout (e.g. "Sniper", "Door Needed" —
+   * see hub-renderer.js's MAP_TAGS for the current fixed set) —
+   * sibling to mapNotes above, same keyed-by-mapName shape, same
+   * save-whole-value-on-every-call pattern. `tags` is the full replacement
+   * array for this map, not a single tag to add/remove — the caller
+   * (hub-renderer.js) always sends the complete currently-selected set.
+   */
+  saveMapTags(mapName, tags) {
+    if (!this.data.mapTags) this.data.mapTags = {};
+    this.data.mapTags[mapName] = tags;
+    this._save();
+  }
+
+  /**
    * Per-map layout, tileset, and every-round map stats breakdown across all archived matches.
    */
   getMapStats() {
@@ -500,6 +514,7 @@ class MatchArchive {
     };
 
     const mapNotes = this.data.mapNotes || {};
+    const mapTags = this.data.mapTags || {};
 
     for (const match of this.data.matches) {
       const team0 = match.team0Name || 'Blue Team';
@@ -570,6 +585,7 @@ class MatchArchive {
           wins: 0,
           losses: 0,
           note: mapNotes[cleanMapName] || '',
+          tags: mapTags[cleanMapName] || [],
           history: [],
         };
         existingM.timesPlayed += 1;
@@ -603,14 +619,26 @@ class MatchArchive {
 
   /**
    * Export all match history as CSV text.
+   *
+   * WeaponBreakdown column format: a single quoted field containing
+   * "label:hits/kills" pairs separated by ";" (e.g. "AP-25:12/3;BLK-TAR:5/1"),
+   * covering only weapons the local player actually fired that match
+   * (hits > 0 or kills > 0) — matches match.weaponBreakdown, the same data
+   * the match-detail view's weapons tab reads.
    */
   exportCsv() {
-    const header = 'MatchID,Timestamp,Result,MyScore,OppScore,Map,Kills,Deaths,Assists,Inferred\n';
+    const header = 'MatchID,Timestamp,Result,MyScore,OppScore,Team0Name,Team1Name,Map,Kills,Deaths,Assists,WeaponBreakdown,Inferred\n';
     const rows = this.data.matches.map((m) => {
       const date = new Date(m.timestamp).toISOString();
       const res = m.won ? 'WIN' : 'LOSS';
-      const map = `"${(m.mapLabel ?? '').replace(/"/g, '""')}"`;
-      return `${m.matchId},${date},${res},${m.myScore},${m.oppScore},${map},${m.kills},${m.deaths},${m.assists},${m.inferred ? 'TRUE' : 'FALSE'}`;
+      const map = csvField(m.mapLabel ?? '');
+      const team0 = csvField(m.team0Name ?? 'Blue Team');
+      const team1 = csvField(m.team1Name ?? 'Orange Team');
+      const weapons = (m.weaponBreakdown ?? [])
+        .filter((w) => w.hits > 0 || w.kills > 0)
+        .map((w) => `${w.label}:${w.hits}/${w.kills}`)
+        .join(';');
+      return `${m.matchId},${date},${res},${m.myScore},${m.oppScore},${team0},${team1},${map},${m.kills},${m.deaths},${m.assists},${csvField(weapons)},${m.inferred ? 'TRUE' : 'FALSE'}`;
     });
     return header + rows.join('\n');
   }
@@ -621,6 +649,9 @@ function round1(n) {
 }
 function round2(n) {
   return Math.round(n * 100) / 100;
+}
+function csvField(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
 }
 
 // The one place the DPL-style rating formula is computed — used by both
