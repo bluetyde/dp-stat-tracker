@@ -217,6 +217,7 @@ const mapsPanelEl = document.getElementById('mapsPanel');
 const mapsBodyEl = document.getElementById('mapsBody');
 const mapsTableEl = document.getElementById('mapsTable');
 const mapsTilesetGrid = document.getElementById('mapsTilesetGrid');
+const mapTilesetFiltersEl = document.getElementById('mapTilesetFilters');
 const mapHistoryBackdrop = document.getElementById('mapHistoryBackdrop');
 const mhMapTitle = document.getElementById('mhMapTitle');
 const mhTilesetBadge = document.getElementById('mhTilesetBadge');
