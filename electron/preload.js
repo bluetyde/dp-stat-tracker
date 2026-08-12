@@ -32,4 +32,9 @@ contextBridge.exposeInMainWorld('hubAPI', {
   exportCsv: () => ipcRenderer.invoke('hub:export-csv'),
   saveMapNote: (mapName, note) => ipcRenderer.invoke('hub:save-map-note', mapName, note),
   openExternal: (url) => ipcRenderer.invoke('hub:open-external', url),
+  // Steam profile links specifically go through this instead of
+  // openExternal above — takes a raw accountId, not a pre-built URL, so
+  // main.js's numeric validation and scheme/host check both run before
+  // anything reaches shell.openExternal. See main.js's hub:open-steam-profile.
+  openSteamProfile: (accountId) => ipcRenderer.invoke('hub:open-steam-profile', accountId),
 });

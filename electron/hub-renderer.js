@@ -492,7 +492,7 @@ function renderPlayedWithTable() {
       if (e.target.closest('.pw-steam-btn')) {
         e.stopPropagation();
         const accountId = e.target.closest('.pw-steam-btn').dataset.accountid;
-        window.hubAPI.openExternal(`https://steamcommunity.com/profiles/${accountId}`);
+        window.hubAPI.openSteamProfile(accountId);
         return;
       }
       openPlayerDetail(p.accountId);
@@ -612,7 +612,7 @@ async function openPlayerDetail(accountId) {
 
 pdSteamBtn?.addEventListener('click', () => {
   if (currentPdAccountId) {
-    window.hubAPI.openExternal(`https://steamcommunity.com/profiles/${currentPdAccountId}`);
+    window.hubAPI.openSteamProfile(currentPdAccountId);
   }
 });
 

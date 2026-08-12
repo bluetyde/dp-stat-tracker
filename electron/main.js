@@ -414,13 +414,38 @@ function sendHubUpdate() {
 const steamAvatarCache = new Map();
 const httpsClient = require('node:https');
 
-ipcMain.handle('hub:get-steam-avatar', async (_event, accountId) => {
-  if (!accountId) return null;
+// accountId here traces back to parser.js's Stats::Team block parsing
+// (m.AccountId, straight out of opponent/teammate JSON broadcast during a
+// match) — semi-trusted, attacker-influenced data, not something the local
+// user typed or controls. Steam64 ids are always plain digit strings, so
+// that's the full accepted shape; anything else is rejected before it ever
+// reaches a URL or shell.openExternal.
+const STEAM_ACCOUNT_ID_RE = /^\d+$/;
+
+function isValidSteamAccountId(accountId) {
+  return typeof accountId === 'string' && STEAM_ACCOUNT_ID_RE.test(accountId);
+}
+
+// Single point where a Steam profile URL gets built from an accountId —
+// used by both the avatar-fetch handler and the profile-link opener below,
+// so the validation above only has to live in one place. Returns null
+// (never a URL) for anything that fails isValidSteamAccountId, so an
+// invalid accountId can't reach either https.get() or shell.openExternal.
+function buildSteamProfileUrl(accountId, { xml = false } = {}) {
+  if (!isValidSteamAccountId(accountId)) return null;
+  return `https://steamcommunity.com/profiles/${accountId}${xml ? '?xml=1' : ''}`;
+}
+
+function handleGetSteamAvatar(_event, accountId) {
+  const url = buildSteamProfileUrl(accountId, { xml: true });
+  if (!url) {
+    console.warn(`hub:get-steam-avatar: rejected non-numeric accountId (${JSON.stringify(accountId)})`);
+    return Promise.resolve(null);
+  }
   if (steamAvatarCache.has(accountId)) {
-    return steamAvatarCache.get(accountId);
+    return Promise.resolve(steamAvatarCache.get(accountId));
   }
   return new Promise((resolve) => {
-    const url = `https://steamcommunity.com/profiles/${accountId}?xml=1`;
     const req = httpsClient.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
       let body = '';
       res.on('data', (chunk) => body += chunk);
@@ -442,7 +467,8 @@ ipcMain.handle('hub:get-steam-avatar', async (_event, accountId) => {
       resolve(null);
     });
   });
-});
+}
+ipcMain.handle('hub:get-steam-avatar', handleGetSteamAvatar);
 
 ipcMain.on('hub:request-refresh', () => {
   sendHubUpdate();
@@ -472,6 +498,47 @@ ipcMain.handle('hub:open-external', (_event, url) => {
     shell.openExternal(url);
   }
 });
+
+// Dedicated handler for the Played With tab's "STEAM ↗" buttons — separate
+// from the generic hub:open-external above (which also opens hardcoded,
+// trusted weapon-wiki links and stays a plain scheme check) because this
+// one's URL is built from accountId, semi-trusted match data. Takes the raw
+// accountId rather than a renderer-built URL string, so the numeric
+// validation and URL construction both happen here, main-process side,
+// through the same buildSteamProfileUrl() the avatar fetch uses — the
+// renderer never gets to hand this handler an arbitrary string.
+// Belt-and-suspenders on top of buildSteamProfileUrl's accountId regex:
+// parses `url` and checks its scheme/host explicitly, rather than a plain
+// url.includes('steamcommunity.com') check, which would incorrectly pass
+// for an attacker-crafted host like "steamcommunity.com.evil.com" — the
+// parsed hostname only ever reflects the actual authority component, so
+// that kind of suffix trick can't fool it. Standalone (not folded into
+// handleOpenSteamProfile) so this specific safeguard can be exercised
+// directly against a crafted URL, independent of accountId validation.
+function isSteamCommunityUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === 'https:' && parsed.hostname === 'steamcommunity.com';
+}
+
+function handleOpenSteamProfile(_event, accountId) {
+  const url = buildSteamProfileUrl(accountId);
+  if (!url) {
+    console.warn(`hub:open-steam-profile: rejected non-numeric accountId (${JSON.stringify(accountId)})`);
+    return false;
+  }
+  if (!isSteamCommunityUrl(url)) {
+    console.warn(`hub:open-steam-profile: scheme/host check failed (${url})`);
+    return false;
+  }
+  shell.openExternal(url);
+  return true;
+}
+ipcMain.handle('hub:open-steam-profile', handleOpenSteamProfile);
 
 ipcMain.handle('hub:get-ranked-history', () => {
   return rankedArchive.getRecentMatches(Number.MAX_SAFE_INTEGER);
