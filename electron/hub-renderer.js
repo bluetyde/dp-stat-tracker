@@ -3,6 +3,9 @@
 // window.hubAPI; never touches fs or the archives directly.
 
 const playerNameEl = document.getElementById('playerName');
+const playerAvatarEl = document.getElementById('playerAvatar');
+const playerRatingBadgeEl = document.getElementById('playerRatingBadge');
+const playerRatingEl = document.getElementById('playerRating');
 const emptyHubEl = document.getElementById('emptyHub');
 const statGridEl = document.getElementById('statGrid');
 const detailColsEl = document.getElementById('detailCols');
@@ -86,6 +89,15 @@ function render(data) {
   playerNameEl.textContent = data.playerName || '—';
 
   const hasRanked = !!(data.lifetime && data.lifetime.matchesRecorded > 0);
+
+  // DPL Rating badge — same computeDplRating() formula/scale as every
+  // Played With row (see match-archive.js's getLifetimeStats()), so it's
+  // ranked-only, gated the same way the stat tiles below already are.
+  playerRatingBadgeEl.hidden = !hasRanked;
+  if (hasRanked) playerRatingEl.textContent = data.lifetime.dplRating.toFixed(2);
+
+  loadAvatarInto(playerAvatarEl, data.localAccountId);
+
   const rankedMatches = data.recentMatches ?? [];
   const otherMatches = data.otherMatches ?? [];
   const hasAny = rankedMatches.length > 0 || otherMatches.length > 0;
@@ -405,9 +417,28 @@ const playedWithSearchInputEl = document.getElementById('playedWithSearchInput')
 const pwTotalPlayersEl = document.getElementById('pwTotalPlayers');
 const pwTopTeammateEl = document.getElementById('pwTopTeammate');
 const pwTopTeammateSubEl = document.getElementById('pwTopTeammateSub');
+const pwTopTeammateAvatarEl = document.getElementById('pwTopTeammateAvatar');
 const pwTopRivalEl = document.getElementById('pwTopRival');
 const pwTopRivalSubEl = document.getElementById('pwTopRivalSub');
+const pwTopRivalAvatarEl = document.getElementById('pwTopRivalAvatar');
 const pwAvgWinRateEl = document.getElementById('pwAvgWinRate');
+
+// Same hub:get-steam-avatar path (and main-process-side accountId
+// validation — see isValidSteamAccountId/buildSteamProfileUrl in main.js)
+// every other avatar in this app already goes through. `imgEl` starts
+// hidden via the `hidden` attribute in hub.html (no inline `display`
+// fighting it — see the #weaponsContent-class bug fixed earlier this
+// project); only revealed once a real URL comes back.
+function loadAvatarInto(imgEl, accountId) {
+  imgEl.hidden = true;
+  if (!window.hubAPI?.getSteamAvatar || !accountId) return;
+  window.hubAPI.getSteamAvatar(accountId).then((avatarUrl) => {
+    if (avatarUrl) {
+      imgEl.src = avatarUrl;
+      imgEl.hidden = false;
+    }
+  });
+}
 
 let selectedPwCategory = 'all';
 let pwSearchQuery = '';
@@ -427,18 +458,22 @@ function renderPlayedWithTable() {
   if (topTeammate && topTeammate.matchesTogether > 0) {
     pwTopTeammateEl.textContent = topTeammate.latestName;
     pwTopTeammateSubEl.textContent = `${topTeammate.matchesTogether}g · ${topTeammate.winRateTogether}% WR`;
+    loadAvatarInto(pwTopTeammateAvatarEl, topTeammate.accountId);
   } else {
     pwTopTeammateEl.textContent = '—';
     pwTopTeammateSubEl.textContent = '0 games';
+    pwTopTeammateAvatarEl.hidden = true;
   }
 
   const topRival = [...playedWithList].sort((a, b) => b.matchesAgainst - a.matchesAgainst)[0];
   if (topRival && topRival.matchesAgainst > 0) {
     pwTopRivalEl.textContent = topRival.latestName;
     pwTopRivalSubEl.textContent = `${topRival.matchesAgainst}g · ${topRival.winRateAgainst}% WR`;
+    loadAvatarInto(pwTopRivalAvatarEl, topRival.accountId);
   } else {
     pwTopRivalEl.textContent = '—';
     pwTopRivalSubEl.textContent = '0 games';
+    pwTopRivalAvatarEl.hidden = true;
   }
 
   const teamGames = playedWithList.filter((p) => p.matchesTogether > 0);
@@ -577,6 +612,9 @@ const pdAdr = document.getElementById('pdAdr');
 const pdKastSub = document.getElementById('pdKastSub');
 const pdTeammateText = document.getElementById('pdTeammateText');
 const pdOpponentText = document.getElementById('pdOpponentText');
+const pdHistoryKicker = document.getElementById('pdHistoryKicker');
+const pdTeammateLabel = document.getElementById('pdTeammateLabel');
+const pdOpponentLabel = document.getElementById('pdOpponentLabel');
 const pdAvatar = document.getElementById('pdAvatar');
 
 let currentPdAccountId = null;
@@ -587,28 +625,62 @@ async function openPlayerDetail(accountId) {
     pdAvatar.src = '';
     pdAvatar.hidden = true;
   }
-  const p = await window.hubAPI.getPlayerDetail(accountId);
-  if (!p) {
-    pdName.textContent = `Player #${accountId.slice(-4)}`;
+
+  // getPlayedWithStats()/getSinglePlayedWith() deliberately exclude the
+  // local player (match-archive.js: "Skip local player" — that aggregation
+  // is "who you've played with/against", which doesn't include yourself).
+  // Clicking your own name (e.g. the .is-you row in a match-detail
+  // scoreboard) used to fall through to the "unknown player" branch below
+  // and show all zeros — not an error, but not YOUR actual stats either.
+  // Route the self-case to the already-computed lifetime totals instead.
+  const isSelf = !!latestHubData?.localAccountId && accountId === latestHubData.localAccountId;
+
+  if (isSelf) {
+    const l = latestHubData.lifetime ?? {};
+    pdName.textContent = latestHubData.playerName || `Player #${accountId.slice(-4)}`;
     pdAccountId.textContent = `Steam ID: ${accountId}`;
-    pdRating.textContent = '1.00';
-    pdKdr.textContent = '0.00';
-    pdKdaSub.textContent = '0 - 0 - 0';
-    pdAdr.textContent = '0';
-    pdKastSub.textContent = '0% KAST';
-    pdTeammateText.textContent = '0g · 0% WR';
-    pdOpponentText.textContent = '0g · 0% WR';
+    pdRating.textContent = (l.dplRating ?? 1).toFixed(2);
+    pdKdr.textContent = (l.kdr ?? 0).toFixed(2);
+    pdKdaSub.textContent = `${l.totalKills ?? 0}K - ${l.totalDeaths ?? 0}D - ${l.totalAssists ?? 0}A`;
+    pdAdr.textContent = l.adr ?? 0;
+    pdKastSub.textContent = `${l.kast ?? 0}% KAST`;
+    // "History with you" / "As Teammate" / "As Opponent" don't mean
+    // anything relative to yourself — relabeled to a plain career record
+    // instead of showing that framing with zeros.
+    pdHistoryKicker.textContent = 'Career record';
+    pdTeammateLabel.textContent = 'Record';
+    pdTeammateText.textContent = `${l.wins ?? 0}W - ${l.losses ?? 0}L`;
+    pdOpponentLabel.textContent = 'Win Rate';
+    pdOpponentText.textContent = `${l.winRate ?? 0}%`;
   } else {
-    pdName.textContent = p.latestName || p.accountId;
-    pdAccountId.textContent = `Steam ID: ${p.accountId}`;
-    pdRating.textContent = p.dplRating.toFixed(2);
-    pdKdr.textContent = p.kdr.toFixed(2);
-    pdKdaSub.textContent = `${p.kills}K - ${p.deaths}D - ${p.assists}A`;
-    pdAdr.textContent = p.adr;
-    pdKastSub.textContent = `${p.kast}% KAST`;
-    pdTeammateText.textContent = `${p.matchesTogether}g · ${p.winRateTogether}% WR`;
-    pdOpponentText.textContent = `${p.matchesAgainst}g · ${p.winRateAgainst}% WR`;
+    pdHistoryKicker.textContent = 'History with you';
+    pdTeammateLabel.textContent = 'As Teammate';
+    pdOpponentLabel.textContent = 'As Opponent';
+
+    const p = await window.hubAPI.getPlayerDetail(accountId);
+    if (!p) {
+      pdName.textContent = `Player #${accountId.slice(-4)}`;
+      pdAccountId.textContent = `Steam ID: ${accountId}`;
+      pdRating.textContent = '1.00';
+      pdKdr.textContent = '0.00';
+      pdKdaSub.textContent = '0 - 0 - 0';
+      pdAdr.textContent = '0';
+      pdKastSub.textContent = '0% KAST';
+      pdTeammateText.textContent = '0g · 0% WR';
+      pdOpponentText.textContent = '0g · 0% WR';
+    } else {
+      pdName.textContent = p.latestName || p.accountId;
+      pdAccountId.textContent = `Steam ID: ${p.accountId}`;
+      pdRating.textContent = p.dplRating.toFixed(2);
+      pdKdr.textContent = p.kdr.toFixed(2);
+      pdKdaSub.textContent = `${p.kills}K - ${p.deaths}D - ${p.assists}A`;
+      pdAdr.textContent = p.adr;
+      pdKastSub.textContent = `${p.kast}% KAST`;
+      pdTeammateText.textContent = `${p.matchesTogether}g · ${p.winRateTogether}% WR`;
+      pdOpponentText.textContent = `${p.matchesAgainst}g · ${p.winRateAgainst}% WR`;
+    }
   }
+
   playerDetailBackdrop.hidden = false;
 
   if (window.hubAPI?.getSteamAvatar && accountId) {

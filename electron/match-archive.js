@@ -209,18 +209,35 @@ class MatchArchive {
     let assists = 0;
     let wins = 0;
     let losses = 0;
+    // damage/kast aren't denormalized on the match entry the way
+    // kills/deaths/assists are (see recordMatch's doc comment) — only
+    // present inside the full teams scoreboard, so the local player's own
+    // row has to be looked up there per match, same source
+    // getPlayedWithStats() reads for every OTHER player's rating inputs.
+    let damage = 0;
+    let roundsCounted = 0;
+    let kastRounds = 0;
     for (const m of this.data.matches) {
       kills += m.kills;
       deaths += m.deaths;
       assists += m.assists;
       if (m.won) wins += 1;
       else losses += 1;
+
+      const myRow = m.teams?.[0]?.find((r) => r.accountId === m.localAccountId) ?? m.teams?.[1]?.find((r) => r.accountId === m.localAccountId);
+      if (myRow) {
+        damage += myRow.damage ?? 0;
+        roundsCounted += myRow.kast?.roundsCounted ?? 0;
+        kastRounds += myRow.kast?.kastRounds ?? 0;
+      }
     }
     const matchesRecorded = this.data.matches.length;
     const kdr = deaths > 0 ? kills / deaths : kills;
     const totalDecided = wins + losses;
     const winRate = totalDecided > 0 ? (wins / totalDecided) * 100 : 0;
     const killsPerMatch = matchesRecorded > 0 ? kills / matchesRecorded : 0;
+    const adr = roundsCounted > 0 ? damage / roundsCounted : 0;
+    const kastPct = roundsCounted > 0 ? Math.round((kastRounds / roundsCounted) * 100) : 0;
     const { bestWinStreak, worstLossStreak } = this._streaks();
     return {
       totalKills: kills,
@@ -234,6 +251,15 @@ class MatchArchive {
       killsPerMatch: round1(killsPerMatch),
       bestWinStreak,
       worstLossStreak,
+      // adr/kast: same per-round inputs the dplRating below is built from —
+      // exposed here too so a consumer (the Player Quick Reference modal's
+      // self-view) can show them without recomputing anything.
+      adr: Math.round(adr),
+      kast: kastPct,
+      // Same formula/scale as every other player's DPL Rating in Played
+      // With — see computeDplRating's doc comment — just fed the local
+      // player's own summed stats instead of a Played With aggregate.
+      dplRating: computeDplRating({ kills, deaths, damage, roundsCounted, kastRounds }),
     };
   }
 
@@ -424,10 +450,13 @@ class MatchArchive {
         const kdr = p.deaths > 0 ? p.kills / p.deaths : p.kills;
         const adr = p.roundsCounted > 0 ? p.damage / p.roundsCounted : 0;
         const kastPct = p.roundsCounted > 0 ? Math.round((p.kastRounds / p.roundsCounted) * 100) : 0;
-
-        const kpr = p.roundsCounted > 0 ? p.kills / p.roundsCounted : 0;
-        const srv = p.roundsCounted > 0 ? Math.max(0, (p.roundsCounted - p.deaths) / p.roundsCounted) : 0;
-        const dplRating = Math.round((0.35 * kpr + 0.30 * (adr / 100) + 0.20 * srv + 0.15 * (kastPct / 70)) * 100) / 100;
+        const dplRating = computeDplRating({
+          kills: p.kills,
+          deaths: p.deaths,
+          damage: p.damage,
+          roundsCounted: p.roundsCounted,
+          kastRounds: p.kastRounds,
+        });
 
         return {
           ...p,
@@ -592,6 +621,21 @@ function round1(n) {
 }
 function round2(n) {
   return Math.round(n * 100) / 100;
+}
+
+// The one place the DPL-style rating formula is computed — used by both
+// getPlayedWithStats() (rating for every OTHER player seen in a match) and
+// getLifetimeStats() (the local player's own rating, fed their own summed
+// kills/deaths/damage/roundsCounted/kastRounds instead of a Played With
+// aggregate). Same formula either way, so the two numbers stay directly
+// comparable on the same scale — the whole point of not reimplementing it.
+function computeDplRating({ kills, deaths, damage, roundsCounted, kastRounds }) {
+  if (roundsCounted <= 0) return 1.0;
+  const kpr = kills / roundsCounted;
+  const adr = damage / roundsCounted;
+  const srv = Math.max(0, (roundsCounted - deaths) / roundsCounted);
+  const kastPct = Math.round((kastRounds / roundsCounted) * 100);
+  return Math.round((0.35 * kpr + 0.3 * (adr / 100) + 0.2 * srv + 0.15 * (kastPct / 70)) * 100) / 100;
 }
 
 module.exports = { MatchArchive };

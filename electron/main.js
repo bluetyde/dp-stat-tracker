@@ -396,6 +396,13 @@ function sendHubUpdate() {
   const playedWithStats = rankedArchive.getPlayedWithStats();
   hubWindow.webContents.send('hub:update', {
     playerName: currentPlayerName(),
+    // Raw accountId (not just the display name above) — the Career Overview
+    // avatar fetch needs it for hub:get-steam-avatar the same way every
+    // Played With row does; that IPC handler validates it main-process side
+    // regardless (see isValidSteamAccountId in this file), so exposing the
+    // raw value here doesn't open up anything the hardening doesn't already
+    // cover.
+    localAccountId: localAccountId || rankedArchive.getLocalAccountId(),
     // Career totals are derived ONLY from rankedArchive — see match-archive.js
     // (summed fresh on every read) and rescan.js (routing by score shape).
     lifetime: rankedArchive.getLifetimeStats(),
