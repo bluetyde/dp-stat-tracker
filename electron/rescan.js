@@ -78,7 +78,14 @@ function recordCompletedMatch(
 
   const matchId = inferred ? match.liveMatchId : match.endMatchId;
   if (!matchId) return false;
-  if (rankedArchive.hasRecordedMatch(matchId) || otherArchive.hasRecordedMatch(matchId)) return false;
+
+  const isRankedRecorded = rankedArchive.hasRecordedMatch(matchId);
+  const isOtherRecorded = otherArchive.hasRecordedMatch(matchId);
+  if (isRankedRecorded || isOtherRecorded) {
+    const existingArchive = isRankedRecorded ? rankedArchive : otherArchive;
+    if (!existingArchive.isLegacyMatch(matchId)) return false;
+  }
+
   if (!accountId) return false;
 
   const me = match.players.get(accountId);
@@ -102,6 +109,30 @@ function recordCompletedMatch(
 
   const targetArchive = isRankedFinalScore(myScore, oppScore) ? rankedArchive : otherArchive;
 
+  let prevWins0 = 0;
+  const mapRoundsDetailed = [];
+  const totalRounds = match.roundsByNumber.size;
+
+  for (let r = 1; r <= totalRounds; r++) {
+    const roundObj = match.roundsByNumber.get(r);
+    const mapInfo = roundMaps[r - 1] ?? { label: 'Unknown Map', tileset: 'Unknown', mapName: 'Unknown' };
+    const wins0 = roundObj?.teamBlocks?.[0]?.roundWins ?? prevWins0;
+    const winnerSide = wins0 > prevWins0 ? 0 : 1;
+    prevWins0 = wins0;
+
+    mapRoundsDetailed.push({
+      round: r,
+      mapLabel: mapInfo.label,
+      tileset: mapInfo.tileset ?? 'Unknown',
+      mapName: mapInfo.mapName ?? mapInfo.label,
+      winnerSide,
+      won: me.rosterSide === winnerSide,
+    });
+  }
+
+  const team0Name = match.team0Name || 'Blue Team';
+  const team1Name = match.team1Name || 'Orange Team';
+
   targetArchive.recordMatch({
     matchId,
     timestamp: Date.now(),
@@ -109,8 +140,11 @@ function recordCompletedMatch(
     won: myScore > oppScore,
     myScore,
     oppScore,
+    team0Name,
+    team1Name,
     mapLabel: roundMaps[0]?.label ?? null, // round 1's map represents the match; see map-tracker.js
-    roundMaps: roundMaps.map((m) => m.label),
+    mapRounds: mapRoundsDetailed,
+    roundMaps: mapRoundsDetailed,
     localAccountId: accountId,
     roundCount: stats.roundCount,
     finalScore, // not perspective-flipped — side0/side1 as reported, for the detail view's team columns

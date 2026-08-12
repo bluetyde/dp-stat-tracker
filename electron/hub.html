@@ -160,6 +160,237 @@
   table.rows tbody tr { cursor: pointer; }
   table.rows tbody tr:hover { background: rgba(127, 182, 232, 0.06); }
 
+  /* Weapons tab — header cells double as sort buttons (see hub-renderer.js's
+     sortWeapons()); rows aren't clickable the way match rows are, so no
+     cursor:pointer/hover on tbody tr here, just the header affordance. */
+  table.sortable thead th[data-sort] { cursor: pointer; user-select: none; }
+  table.sortable thead th[data-sort]:hover { color: var(--text-bright); }
+  table.sortable thead th[data-sort].sort-active { color: var(--accent); }
+  table.sortable thead th[data-sort] .sort-arrow { display: inline-block; margin-left: 4px; opacity: 0.7; }
+  #weaponsBody td.no-data { color: var(--text-faint); }
+
+  /* Weapons tab redesign styles */
+  .weapons-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  #mapsTilesetGrid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .weapons-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .category-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .cat-pill {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-soft);
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 5px 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s ease;
+  }
+  .cat-pill:hover {
+    color: var(--text-bright);
+    border-color: var(--accent-dim);
+    background: rgba(127, 182, 232, 0.06);
+  }
+  .cat-pill.active {
+    background: rgba(127, 182, 232, 0.14);
+    border-color: var(--accent);
+    color: var(--text-bright);
+  }
+  .weapon-search-box input {
+    background: #090c0f;
+    border: 1px solid var(--border);
+    color: var(--text-bright);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 2px;
+    width: 220px;
+    outline: none;
+  }
+  .weapon-search-box input:focus {
+    border-color: var(--accent);
+  }
+  .weapon-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 0;
+  }
+  .weapon-cell .weapon-cat {
+    font-size: 9px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-dim);
+  }
+  .weapon-cell .weapon-title {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-bright);
+  }
+  .weapon-cell .weapon-specs {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .kills-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .kills-bar {
+    width: 60px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .kills-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+  .hs-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    border-radius: 2px;
+    background: rgba(127, 182, 232, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(127, 182, 232, 0.25);
+  }
+
+  /* Live Match & Prediction styles */
+  .prediction-card {
+    background: rgba(15, 20, 24, 0.95);
+    border: 1px solid var(--border);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-radius: 2px;
+  }
+  .prediction-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .prediction-bar-container {
+    height: 12px;
+    background: #e28a42;
+    border-radius: 2px;
+    overflow: hidden;
+    display: flex;
+  }
+  .prediction-bar-team0 {
+    height: 100%;
+    background: #579cd8;
+    transition: width 0.3s ease;
+  }
+  .rating-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    border-radius: 2px;
+    background: rgba(127, 182, 232, 0.12);
+    color: var(--accent-bright);
+    border: 1px solid rgba(127, 182, 232, 0.25);
+  }
+  .played-with-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    border: 1px solid var(--border-soft);
+    margin-left: 6px;
+  }
+  .played-with-tag--teammate {
+    color: var(--accent);
+    border-color: rgba(127, 182, 232, 0.3);
+    background: rgba(127, 182, 232, 0.08);
+  }
+  .played-with-tag--rival {
+    color: #e28a42;
+    border-color: rgba(226, 138, 66, 0.3);
+    background: rgba(226, 138, 66, 0.08);
+  }
+  .player-name-link {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .player-name-link:hover {
+    color: var(--accent-bright);
+    text-decoration: underline;
+  }
+
+  /* Player Detail Modal */
+  #playerDetailBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 7, 9, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    z-index: 20;
+  }
+  #playerDetailBackdrop[hidden] {
+    display: none !important;
+  }
+
+  .export-btn {
+    background: none;
+    border: 1px solid var(--border-soft);
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .export-btn:hover {
+    color: var(--text-bright);
+    border-color: var(--accent);
+    background: rgba(127, 182, 232, 0.06);
+  }
+
   .delete-match-btn {
     background: none;
     border: 1px solid transparent;
@@ -300,8 +531,12 @@
     </div>
     <nav>
       <div class="nav-item active" data-view="home"><span class="nav-dot"></span>Home</div>
+      <div class="nav-item" data-view="liveMatch"><span class="nav-dot"></span>Live Match</div>
       <div class="nav-item" data-view="ranked"><span class="nav-dot"></span>Ranked History</div>
       <div class="nav-item" data-view="other"><span class="nav-dot"></span>Other History</div>
+      <div class="nav-item" data-view="weapons"><span class="nav-dot"></span>Weapons</div>
+      <div class="nav-item" data-view="playedWith"><span class="nav-dot"></span>Played With</div>
+      <div class="nav-item" data-view="maps"><span class="nav-dot"></span>Maps</div>
     </nav>
     <div class="log-source">
       <div class="kicker">Log source</div>
@@ -320,7 +555,10 @@
         <div class="kicker">Career overview</div>
         <h1 id="playerName">—</h1>
       </div>
-      <button id="refreshBtn">Refresh</button>
+      <div style="display:flex;gap:10px">
+        <button class="export-btn" id="exportCsvBtn">Export CSV</button>
+        <button id="refreshBtn">Refresh</button>
+      </div>
     </header>
 
     <div id="hubBody">
@@ -365,7 +603,7 @@
           <div class="panel">
             <table class="rows">
               <thead>
-                <tr><th>Result</th><th>Map</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
+                <tr><th>Result</th><th>Matchup</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
               </thead>
               <tbody id="recentMatchesBody"></tbody>
             </table>
@@ -402,7 +640,7 @@
       <div class="panel" id="rankedHistoryPanel" hidden style="margin-top:24px">
         <table class="rows">
           <thead>
-            <tr><th>Result</th><th>Map</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
+            <tr><th>Result</th><th>Matchup</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
           </thead>
           <tbody id="rankedHistoryBody"></tbody>
         </table>
@@ -420,12 +658,286 @@
       <div class="panel" id="otherHistoryPanel" hidden style="margin-top:24px">
         <table class="rows">
           <thead>
-            <tr><th>Result</th><th>Map</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
+            <tr><th>Result</th><th>Matchup</th><th style="text-align:center">Score</th><th style="text-align:center">K-D-A</th><th style="text-align:right">Played</th><th style="width:32px"></th></tr>
           </thead>
           <tbody id="otherHistoryBody"></tbody>
         </table>
       </div>
     </div>
+
+    <div id="weaponsView" hidden>
+      <header class="page-head">
+        <div>
+          <div class="kicker">Ranked · lifetime</div>
+          <h1>Weapons</h1>
+        </div>
+      </header>
+
+      <div id="weaponsEmpty" class="empty-state" hidden>No ranked matches recorded yet.</div>
+
+      <div id="weaponsContent" hidden style="display:flex;flex-direction:column;gap:20px;margin-top:24px">
+        <!-- Summary Cards Grid -->
+        <div class="weapons-summary-grid">
+          <div class="stat-tile">
+            <div class="stat-label">Total Weapon Kills</div>
+            <div class="stat-value" id="weaponTotalKills">0</div>
+            <div class="stat-sub">across all weapons</div>
+          </div>
+          <div class="stat-tile stat-tile--accent">
+            <div class="stat-label">Top Weapon</div>
+            <div class="stat-value" id="weaponTopName" style="font-size:22px">—</div>
+            <div class="stat-sub" id="weaponTopSub">0 kills</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Overall Headshots</div>
+            <div class="stat-value" id="weaponOverallHs">0</div>
+            <div class="stat-sub" id="weaponOverallHsSub">0% accuracy</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Most Died To</div>
+            <div class="stat-value" id="weaponDeadliestName" style="font-size:22px">—</div>
+            <div class="stat-sub" id="weaponDeadliestSub">0 deaths</div>
+          </div>
+        </div>
+
+        <!-- Filters & Search Controls -->
+        <div class="weapons-controls">
+          <div class="category-filters" id="categoryFilters">
+            <button class="cat-pill active" data-cat="all">All</button>
+            <button class="cat-pill" data-cat="Assault Rifle">Assault Rifles</button>
+            <button class="cat-pill" data-cat="Submachine Gun">SMGs</button>
+            <button class="cat-pill" data-cat="Battle Rifle">Battle Rifles</button>
+            <button class="cat-pill" data-cat="Shotgun">Shotguns</button>
+            <button class="cat-pill" data-cat="Handgun">Pistols</button>
+            <button class="cat-pill" data-cat="Sniper Rifle">Snipers</button>
+            <button class="cat-pill" data-cat="Explosive">Explosives</button>
+          </div>
+          <div class="weapon-search-box">
+            <input type="text" id="weaponSearchInput" placeholder="Filter weapon by name..." />
+          </div>
+        </div>
+
+        <!-- Weapons Table Panel -->
+        <div class="panel" id="weaponsPanel">
+          <table class="rows sortable" id="weaponsTable">
+            <thead>
+              <tr>
+                <th data-sort="label">Weapon</th>
+                <th data-sort="kills" style="text-align:center">Kills</th>
+                <th data-sort="deaths" style="text-align:center">Died By</th>
+                <th data-sort="headshots" style="text-align:center">Headshots</th>
+                <th data-sort="hsPercent" style="text-align:center">HS%</th>
+                <th data-sort="killsPerRound" style="text-align:center">Kills/Round</th>
+              </tr>
+            </thead>
+            <tbody id="weaponsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="liveMatchView" hidden>
+      <header class="page-head">
+        <div>
+          <div class="kicker">Live match telemetry</div>
+          <h1>Live Match</h1>
+        </div>
+      </header>
+
+      <div id="liveMatchEmpty" class="empty-state">No live match active right now. Launch Due Process and start a match to view live rosters & win prediction!</div>
+
+      <div id="liveMatchContent" hidden style="display:flex;flex-direction:column;gap:24px;margin-top:24px">
+        <!-- Match Prediction Card -->
+        <div class="prediction-card">
+          <div class="prediction-header">
+            <div>
+              <div class="kicker">Match Prediction</div>
+              <div class="display" id="predictionWinnerText" style="font-size:20px;color:var(--accent-bright)">BLUE TEAM HAS A 50% CHANCE OF WINNING</div>
+            </div>
+            <div style="display:flex;gap:24px;align-items:center">
+              <div style="text-align:right">
+                <div class="kicker" style="color:#579cd8">BLUE AVG RATING</div>
+                <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:#579cd8" id="blueAvgRating">1.00</div>
+              </div>
+              <div style="text-align:right">
+                <div class="kicker" style="color:#e28a42">ORANGE AVG RATING</div>
+                <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:#e28a42" id="orangeAvgRating">1.00</div>
+              </div>
+            </div>
+          </div>
+          <div class="prediction-bar-container">
+            <div class="prediction-bar-team0" id="predictionBarTeam0" style="width:50%"></div>
+          </div>
+        </div>
+
+        <!-- Live Teams Scoreboard -->
+        <div id="liveMatchTeams" class="scoreboard-teams"></div>
+      </div>
+    </div>
+
+    <div id="playedWithView" hidden>
+      <header class="page-head">
+        <div>
+          <div class="kicker">Roster intelligence · players encountered</div>
+          <h1>Played With</h1>
+        </div>
+      </header>
+
+      <div id="playedWithEmpty" class="empty-state" hidden>No players encountered across archived matches yet.</div>
+
+      <div id="playedWithContent" hidden style="display:flex;flex-direction:column;gap:20px;margin-top:24px">
+        <!-- Top Players Summary Grid -->
+        <div class="weapons-summary-grid" style="grid-template-columns:repeat(4,1fr)" id="playedWithSummaryGrid">
+          <div class="stat-tile">
+            <div class="stat-label">Total Players</div>
+            <div class="stat-value" id="pwTotalPlayers">0</div>
+            <div class="stat-sub">Encountered across matches</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Top Duo Teammate</div>
+            <div class="stat-value" id="pwTopTeammate" style="font-size:18px;color:var(--accent-bright);margin-top:4px">—</div>
+            <div class="stat-sub" id="pwTopTeammateSub">0 games</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Top Rival</div>
+            <div class="stat-value" id="pwTopRival" style="font-size:18px;color:#e28a42;margin-top:4px">—</div>
+            <div class="stat-sub" id="pwTopRivalSub">0 games</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Teammate Win Rate</div>
+            <div class="stat-value" id="pwAvgWinRate">0%</div>
+            <div class="stat-sub">Across all duo games</div>
+          </div>
+        </div>
+
+        <!-- Filter Pills & Search Input -->
+        <div class="weapons-controls" style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+          <div class="category-filters" id="playedWithCategoryFilters">
+            <button class="cat-pill active" data-pwcat="all">All Players</button>
+            <button class="cat-pill" data-pwcat="teammates">Teammates</button>
+            <button class="cat-pill" data-pwcat="rivals">Rivals</button>
+          </div>
+          <div style="flex:1;max-width:280px">
+            <input type="text" id="playedWithSearchInput" placeholder="Search player name or Steam ID..." style="width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--border);color:var(--text);font-family:var(--font-body);font-size:13px;padding:7px 12px;outline:none">
+          </div>
+        </div>
+
+        <!-- Played With Table -->
+        <div class="panel">
+          <table class="rows sortable" id="playedWithTable">
+            <thead>
+              <tr>
+                <th data-pwsort="latestName">Player</th>
+                <th data-pwsort="relation" style="text-align:center">Relation</th>
+                <th data-pwsort="matchesTogether" style="text-align:center">Together</th>
+                <th data-pwsort="winRateTogether" style="text-align:center">Win % (With)</th>
+                <th data-pwsort="matchesAgainst" style="text-align:center">Against</th>
+                <th data-pwsort="winRateAgainst" style="text-align:center">Win % (Vs)</th>
+                <th data-pwsort="dplRating" style="text-align:center">DPL Rating</th>
+                <th style="text-align:right">Steam</th>
+              </tr>
+            </thead>
+            <tbody id="playedWithBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="mapsView" hidden>
+      <header class="page-head">
+        <div>
+          <div class="kicker">Ranked · round maps</div>
+          <h1>Map Performance</h1>
+        </div>
+      </header>
+
+      <div id="mapsEmpty" class="empty-state" hidden>No map rounds recorded yet.</div>
+
+      <div id="mapsContent" hidden style="display:flex;flex-direction:column;gap:20px;margin-top:24px">
+        <!-- Map Tileset Summary Grid -->
+        <div class="weapons-summary-grid" id="mapsTilesetGrid"></div>
+
+        <!-- Category Filters -->
+        <div class="weapons-controls">
+          <div class="category-filters" id="mapTilesetFilters">
+            <button class="cat-pill active" data-mapcat="all">All Sets</button>
+            <button class="cat-pill" data-mapcat="Bank">Bank</button>
+            <button class="cat-pill" data-mapcat="Factory">Factory</button>
+            <button class="cat-pill" data-mapcat="Dome">Dome</button>
+            <button class="cat-pill" data-mapcat="CStore">CStore</button>
+            <button class="cat-pill" data-mapcat="Killhouse_Day">Killhouse</button>
+          </div>
+        </div>
+
+        <!-- Every Map Table -->
+        <div class="panel" id="mapsPanel">
+          <table class="rows sortable" id="mapsTable">
+            <thead>
+              <tr>
+                <th data-mapsort="mapLabel">Map Name</th>
+                <th data-mapsort="tileset" style="text-align:center">Set</th>
+                <th data-mapsort="matchup">Matchup & Round</th>
+                <th data-mapsort="won" style="text-align:center">Outcome</th>
+              </tr>
+            </thead>
+            <tbody id="mapsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="playerDetailBackdrop" hidden>
+    <section id="playerDetailCard" class="panel" style="width:540px;padding:24px;display:flex;flex-direction:column;gap:20px">
+      <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+      <header style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="display:flex;align-items:center;gap:16px">
+          <img id="pdAvatar" src="" alt="Avatar" style="width:48px;height:48px;border-radius:6px;border:1px solid var(--accent);object-fit:cover;background:rgba(0,0,0,0.4)" hidden />
+          <div>
+            <div class="kicker">Player quick reference</div>
+            <h2 id="pdName" style="margin:4px 0 0;font-family:var(--font-display);font-size:28px;text-transform:uppercase;color:var(--text-bright)">—</h2>
+            <div id="pdAccountId" style="font-size:11px;color:var(--text-muted);font-family:var(--font-body)"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="pdSteamBtn" style="background:var(--accent);border:none;color:#0d1013;font-family:var(--font-display);font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;letter-spacing:0.06em">STEAM PROFILE ↗</button>
+          <button id="pdCloseBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:6px 12px;cursor:pointer">CLOSE</button>
+        </div>
+      </header>
+
+      <div class="weapons-summary-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-tile">
+          <div class="stat-label">DPL Rating</div>
+          <div class="stat-value" id="pdRating">1.00</div>
+          <div class="stat-sub">Skill estimate</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">K/D</div>
+          <div class="stat-value" id="pdKdr">0.00</div>
+          <div class="stat-sub" id="pdKdaSub">0 - 0 - 0</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-label">ADR / KAST</div>
+          <div class="stat-value" id="pdAdr">0</div>
+          <div class="stat-sub" id="pdKastSub">0% KAST</div>
+        </div>
+      </div>
+
+      <div class="panel" style="padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div class="kicker">History with you</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted)">As Teammate</div>
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent)" id="pdTeammateText">0g · 0% WR</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted)">As Opponent</div>
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:#e28a42" id="pdOpponentText">0g · 0% WR</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
   </main>
 
   <div id="matchDetailBackdrop" hidden>

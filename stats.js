@@ -22,19 +22,53 @@ export const weaponNames = {
   5: 'PK-57',
   6: 'SAB-R',
   7: 'DL-12',
-  8: 'Big AK', // TODO: confirm real name
+  8: 'KR82M',
   9: 'LS-45',
   10: 'Nack-11',
   11: 'MAWP',
   12: 'Ingmar-57',
   13: 'Legros',
-  14: 'TUB-12', // "Tub?" — TUB-12 is the only Defender primary shotgun on the wiki, fits
+  14: 'TUB-12',
   15: 'Auto Shotgun',
-  17: 'Mini AK', // TODO: confirm real name
+  17: 'KR82U',
   50: 'Grenade',
   51: 'Molotov Cocktail',
-  // 16, 18: not seen yet — no match in either log
 };
+
+// --- Full Weapon Metadata (from community spreadsheet & Fandom wiki) ---
+export const weaponMeta = {
+  0: { label: 'Dawn', category: 'Assault Rifle', fireType: 'Auto', baseDamage: 25, rpm: 460, wikiUrl: 'https://dueprocess.fandom.com/wiki/Dawn', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/a/a2/Dawn.png' },
+  1: { label: 'AP-25', category: 'Assault Rifle', fireType: 'Auto', baseDamage: 20, rpm: 600, wikiUrl: 'https://dueprocess.fandom.com/wiki/AP-25', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/4/4d/AP-25-Logo.png' },
+  2: { label: 'BLK-TAR', category: 'Assault Rifle', fireType: 'Semi', baseDamage: 30, rpm: 390, wikiUrl: 'https://dueprocess.fandom.com/wiki/BLK-TAR', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/d/dd/BLK-Tar.png' },
+  3: { label: 'GAT-9', category: 'Handgun', fireType: 'Semi', baseDamage: 20, rpm: 420, wikiUrl: 'https://dueprocess.fandom.com/wiki/Gat-9', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/e/e3/Gat-9.png' },
+  4: { label: 'Gruber-5', category: 'Submachine Gun', fireType: 'Auto', baseDamage: 22, rpm: 720, wikiUrl: 'https://dueprocess.fandom.com/wiki/Gruber-5', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/a/a0/Gruber-5.png' },
+  5: { label: 'PK-57', category: 'Handgun', fireType: 'Semi', baseDamage: 20, rpm: 410, wikiUrl: 'https://dueprocess.fandom.com/wiki/PK-57', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/4/40/PK-57-Logo.png' },
+  6: { label: 'SAB-R', category: 'Battle Rifle', fireType: 'Semi', baseDamage: 50, rpm: 240, wikiUrl: 'https://dueprocess.fandom.com/wiki/SAB-R', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/9/90/SABR-Logo.png' },
+  7: { label: 'DL-12', category: 'Shotgun', fireType: 'Pump', baseDamage: 20, rpm: 60, wikiUrl: 'https://dueprocess.fandom.com/wiki/DL-12', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/c/c2/DL-12.png' },
+  8: { label: 'KR82M', category: 'Assault Rifle', fireType: 'Auto', baseDamage: 30, rpm: 540, wikiUrl: 'https://dueprocess.fandom.com/wiki/KR82M', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/8/82/KR-82M.png' },
+  9: { label: 'LS-45', category: 'Handgun', fireType: 'Semi', baseDamage: 30, rpm: 390, wikiUrl: 'https://dueprocess.fandom.com/wiki/LS45', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/e/e6/LS45.png' },
+  10: { label: 'Nack-11', category: 'Submachine Gun', fireType: 'Auto', baseDamage: 18, rpm: 1080, wikiUrl: 'https://dueprocess.fandom.com/wiki/Nack-11', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/7/78/Nack-11.png' },
+  11: { label: 'MAWP', category: 'Sniper Rifle', fireType: 'Single', baseDamage: 85, rpm: 23, wikiUrl: 'https://dueprocess.fandom.com/wiki/MAWP', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/f/f6/MAWP.png' },
+  12: { label: 'Ingmar-57', category: 'Battle Rifle', fireType: 'Auto', baseDamage: 37, rpm: 390, wikiUrl: 'https://dueprocess.fandom.com/wiki/INGMAR-57', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/4/40/Ingmar.png' },
+  13: { label: 'Legros', category: 'Assault Rifle', fireType: 'Semi', baseDamage: 40, rpm: 260, wikiUrl: 'https://dueprocess.fandom.com/wiki/F1-Legros', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/b/b9/F1_Legros.png' },
+  14: { label: 'TUB-12', category: 'Shotgun', fireType: 'Pump', baseDamage: 20, rpm: 60, wikiUrl: 'https://dueprocess.fandom.com/wiki/TUB-12', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/b/bf/Tub.png' },
+  15: { label: 'Auto Shotgun', category: 'Shotgun', fireType: 'Auto', baseDamage: 20, rpm: 240, wikiUrl: 'https://dueprocess.fandom.com/wiki/Auto_Shotgun', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/4/47/Autoshotgun.png' },
+  17: { label: 'KR82U', category: 'Assault Rifle', fireType: 'Auto', baseDamage: 30, rpm: 540, wikiUrl: 'https://dueprocess.fandom.com/wiki/KR82U', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/f/fd/KR82U.png' },
+  50: { label: 'Grenade', category: 'Explosive', fireType: 'Throwable', baseDamage: null, rpm: null, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
+  51: { label: 'Molotov Cocktail', category: 'Explosive', fireType: 'Throwable', baseDamage: null, rpm: null, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
+};
+
+// --- Weapon base (torso) damage, for headshot detection ----------------
+export const weaponBaseDamage = Object.fromEntries(
+  Object.entries(weaponMeta)
+    .filter(([, m]) => m.baseDamage !== null)
+    .map(([code, m]) => [code, m.baseDamage])
+);
+
+function isHeadshotDamage(damageSource, damageDealt) {
+  const base = weaponBaseDamage[damageSource];
+  return base !== undefined && damageDealt > base;
+}
 
 // --- Tunable constants (UNCONFIRMED — see README notes in this repo) ---
 // No assist/trade signal exists anywhere in the log, so these are
@@ -114,6 +148,9 @@ function emptyAgg(accountId, known) {
     weaponDamage: new Map(),
     weaponHits: new Map(),
     weaponKills: new Map(),
+    weaponDeaths: new Map(), // damageSource -> times this player died to that weapon
+    weaponHeadshots: new Map(), // damageSource -> headshot-magnitude hits landed (see isHeadshotDamage)
+    weaponRoundsUsed: new Map(), // damageSource -> Set of round numbers this weapon dealt damage or got a kill in
   };
 }
 
@@ -163,6 +200,11 @@ export function computeMatchStats(match, config = {}) {
       else if (d.attackerSide === 1) agg.defenseDamage += d.damageDealt;
       agg.weaponDamage.set(d.damageSource, (agg.weaponDamage.get(d.damageSource) ?? 0) + d.damageDealt);
       agg.weaponHits.set(d.damageSource, (agg.weaponHits.get(d.damageSource) ?? 0) + 1);
+      if (isHeadshotDamage(d.damageSource, d.damageDealt)) {
+        agg.weaponHeadshots.set(d.damageSource, (agg.weaponHeadshots.get(d.damageSource) ?? 0) + 1);
+      }
+      if (!agg.weaponRoundsUsed.has(d.damageSource)) agg.weaponRoundsUsed.set(d.damageSource, new Set());
+      agg.weaponRoundsUsed.get(d.damageSource).add(roundNumber);
     }
 
     // Kills / deaths.
@@ -173,8 +215,14 @@ export function computeMatchStats(match, config = {}) {
         const agg = ensure(killerAccount);
         agg.kills += 1;
         agg.weaponKills.set(k.damageSource, (agg.weaponKills.get(k.damageSource) ?? 0) + 1);
+        if (!agg.weaponRoundsUsed.has(k.damageSource)) agg.weaponRoundsUsed.set(k.damageSource, new Set());
+        agg.weaponRoundsUsed.get(k.damageSource).add(roundNumber);
       }
-      if (victimAccount) ensure(victimAccount).deaths += 1;
+      if (victimAccount) {
+        const victimAgg = ensure(victimAccount);
+        victimAgg.deaths += 1;
+        victimAgg.weaponDeaths.set(k.damageSource, (victimAgg.weaponDeaths.get(k.damageSource) ?? 0) + 1);
+      }
     }
 
     // Assists: teammate damage to the eventual victim, above threshold,
@@ -253,22 +301,55 @@ export function computeMatchStats(match, config = {}) {
   };
 }
 
+export function calculateDplRating(row) {
+  const rounds = row.kast?.roundsCounted || row.roundsCounted || 1;
+  const kpr = row.kills / rounds;
+  const totalDmg = (row.adr?.attackDamageRaw ?? 0) + (row.adr?.defenseDamageRaw ?? 0);
+  const adrRounds = (row.adr?.attackRounds ?? 0) + (row.adr?.defenseRounds ?? 0);
+  const adr = adrRounds > 0 ? totalDmg / adrRounds : (row.damage ?? 0) / rounds;
+  const srv = Math.max(0, (rounds - (row.deaths ?? 0)) / rounds);
+  const kastPct = (row.kast?.percent ?? 0) / 100;
+
+  const rating = 0.35 * kpr + 0.30 * (adr / 100) + 0.20 * srv + 0.15 * (kastPct / 0.70);
+  return Math.round(rating * 100) / 100;
+}
+
 function finalizeRow(agg) {
   const kastPercent = agg.roundsCounted > 0 ? (agg.kastRounds / agg.roundsCounted) * 100 : 0;
   const adrAttack = agg.attackRounds > 0 ? agg.attackDamage / agg.attackRounds : 0;
   const adrDefense = agg.defenseRounds > 0 ? agg.defenseDamage / agg.defenseRounds : 0;
 
-  const weaponBreakdown = [...agg.weaponHits.keys()]
-    .map((code) => ({
-      damageSource: code,
-      label: weaponNames[code] ?? `Weapon #${code}`,
-      hits: agg.weaponHits.get(code) ?? 0,
-      damage: Math.round(agg.weaponDamage.get(code) ?? 0),
-      kills: agg.weaponKills.get(code) ?? 0,
-    }))
+  // Union of weapons the player hit, killed with, or was killed by —
+  // "Died By" needs the latter even for a weapon this player never
+  // personally fired (see the Weapons tab in the Hub).
+  const weaponCodes = new Set([...agg.weaponHits.keys(), ...agg.weaponKills.keys(), ...agg.weaponDeaths.keys()]);
+  const weaponBreakdown = [...weaponCodes]
+    .map((code) => {
+      const meta = weaponMeta[code] ?? { category: 'Other', fireType: 'Unknown', baseDamage: null, rpm: null };
+      return {
+        damageSource: code,
+        label: weaponNames[code] ?? `Weapon #${code}`,
+        category: meta.category,
+        fireType: meta.fireType,
+        baseDamage: meta.baseDamage,
+        rpm: meta.rpm,
+        hits: agg.weaponHits.get(code) ?? 0,
+        damage: Math.round(agg.weaponDamage.get(code) ?? 0),
+        kills: agg.weaponKills.get(code) ?? 0,
+        deaths: agg.weaponDeaths.get(code) ?? 0,
+        // null (not 0) means "no headshot data for this weapon" — see
+        // weaponBaseDamage — so the Hub can render "—" instead of a fake 0%.
+        headshots: code in weaponBaseDamage ? agg.weaponHeadshots.get(code) ?? 0 : null,
+        roundsUsed: agg.weaponRoundsUsed.get(code)?.size ?? 0,
+      };
+    })
     .sort((a, b) => b.kills - a.kills || b.damage - a.damage);
+  // bestWeapon stays scoped to weapons this player actually fired, so a
+  // weapon they only ever died to (0 hits, 0 kills) can never end up as
+  // their "best" weapon just by being in the union list above.
+  const attackedBreakdown = weaponBreakdown.filter((w) => w.hits > 0);
 
-  return {
+  const row = {
     accountId: agg.accountId,
     name: agg.name,
     rosterSide: agg.rosterSide,
@@ -293,7 +374,10 @@ function finalizeRow(agg) {
       won: agg.openingWon,
       involved: agg.openingInvolved,
     },
-    bestWeapon: weaponBreakdown[0] ?? null,
+    bestWeapon: attackedBreakdown[0] ?? null,
     weaponBreakdown,
   };
+
+  row.dplRating = calculateDplRating(row);
+  return row;
 }

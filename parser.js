@@ -84,14 +84,13 @@ function newMatch() {
     matchEndedPayload: null,
     lastScoreUpdate: null,
     finalScore: null, // { side0, side1, source: 'roundWins' | 'matchEndedPayload' }
+    team0Name: null,
+    team1Name: null,
     players: new Map(), // accountId -> { accountId, name, entityId, rosterSide, iconUrl }
     roundsByNumber: new Map(), // roundNumber -> round
   };
 }
 
-// Standalone (not method) so it can also be used to infer a final score for
-// a match that never got a real matchEnded — see main.js's inferred-completion
-// handling, which calls this directly on a still-in-progress match's rounds.
 export function deriveFinalScoreFromRounds(roundsByNumber) {
   let bestRound = -1;
   for (const [n, round] of roundsByNumber) {
@@ -112,6 +111,8 @@ export class DueProcessLogParser {
     this.current = null; // in-progress match, or null between matches
     this._sawMatchStarted = false;
     this._pendingLiveMatchId = null; // captured pre-match-open; see feedLine's Vivox handling
+    this._pendingTeam0Name = null;
+    this._pendingTeam1Name = null;
     this._tail = ''; // buffered partial line, for incremental/streaming input
   }
 
@@ -134,8 +135,15 @@ export class DueProcessLogParser {
   feedLine(line) {
     if (!line) return;
 
-    if (line.indexOf('"type":"matchStarted"') !== -1) {
+    const startPayload = extractGecNetPayload(line, 'matchStarted');
+    if (startPayload) {
       this._sawMatchStarted = true;
+      this._pendingTeam0Name = startPayload.Team1Name ?? null;
+      this._pendingTeam1Name = startPayload.Team2Name ?? null;
+      if (this.current) {
+        this.current.team0Name = this._pendingTeam0Name;
+        this.current.team1Name = this._pendingTeam1Name;
+      }
     }
 
     // This line reliably arrives before a match's own Team/Kill/Damage
@@ -152,25 +160,6 @@ export class DueProcessLogParser {
     }
 
     if (this.current === null) {
-      // BUG FIX: this used to open the match only on the first Team 0
-      // block. But that block is a round-END summary (RoundOutcomes has
-      // length 1 the first time it appears) — round 1's own Kill/Damage/
-      // KillFeed lines are logged BEFORE it, while the match was still
-      // closed, and were silently dropped every single time. Verified
-      // against a real completed match: round 1 held zero kills and zero
-      // damage entries even though the raw log had one Kill line for that
-      // round — this cost every match's round 1 entirely (damage, K/D/A,
-      // KAST, opening duels, and ADR's attack/defense role detection, which
-      // itself depends on round 1 having any Kill/Damage line to read a
-      // side from). Fix: open on the first Team/Kill/Damage/KillFeed line
-      // seen after matchStarted, whichever comes first — for round 1 that's
-      // now its own Kill/Damage lines, so nothing before them is missed.
-      //
-      // The matchStarted JSON message itself still isn't used for the
-      // MatchId — it can carry a MatchId that doesn't match the eventual
-      // matchEnded MatchId (observed in sample data — the backend can
-      // reassign the id once the real match begins) — so MatchId is not
-      // used for boundary detection, only ordering.
       const isMatchEvidence =
         line.indexOf(TEAM_MARKER[0]) !== -1 ||
         line.indexOf(TEAM_MARKER[1]) !== -1 ||
@@ -180,6 +169,8 @@ export class DueProcessLogParser {
       if (this._sawMatchStarted && isMatchEvidence) {
         this.current = newMatch();
         this.current.liveMatchId = this._pendingLiveMatchId;
+        this.current.team0Name = this._pendingTeam0Name;
+        this.current.team1Name = this._pendingTeam1Name;
         this._pendingLiveMatchId = null;
         this._sawMatchStarted = false;
       } else {

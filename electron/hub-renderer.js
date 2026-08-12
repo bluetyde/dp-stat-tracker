@@ -39,8 +39,12 @@ function timeAgo(timestamp) {
 
 const views = {
   home: document.getElementById('homeView'),
+  liveMatch: document.getElementById('liveMatchView'),
   ranked: document.getElementById('rankedHistoryView'),
   other: document.getElementById('otherHistoryView'),
+  weapons: document.getElementById('weaponsView'),
+  playedWith: document.getElementById('playedWithView'),
+  maps: document.getElementById('mapsView'),
 };
 const navItems = [...document.querySelectorAll('.nav-item[data-view]')];
 let currentView = 'home';
@@ -53,6 +57,9 @@ function switchView(view) {
   for (const item of navItems) item.classList.toggle('active', item.dataset.view === view);
   if (view === 'ranked') fetchAndRenderHistory('ranked');
   if (view === 'other') fetchAndRenderHistory('other');
+  if (view === 'playedWith') renderPlayedWithTable();
+  if (view === 'maps') renderMapsTable();
+  if (view === 'liveMatch') renderLiveMatch();
 }
 
 for (const item of navItems) {
@@ -121,7 +128,628 @@ function render(data) {
   if (currentView === 'ranked' || currentView === 'other') {
     fetchAndRenderHistory(currentView);
   }
+
+  if (currentView === 'maps') renderMapsTable();
+  if (currentView === 'liveMatch') renderLiveMatch();
+
+  // Unlike ranked/other history, weaponStats rides along on every regular
+  // hub:update push (main.js's rankedArchive.getWeaponStats() output is
+  // small — bounded by the number of distinct weapon codes, not match
+  // count) — so there's no on-demand fetch here, just a re-render from
+  // whatever's already in `data`. Kept live and current in the DOM even
+  // while the Weapons view is hidden, same reasoning as the stat tiles.
+  renderWeaponsTable();
 }
+
+// ---------------------------------------------------------------------
+// Live Match & Prediction
+// ---------------------------------------------------------------------
+
+const liveMatchEmptyEl = document.getElementById('liveMatchEmpty');
+const liveMatchContentEl = document.getElementById('liveMatchContent');
+const liveMatchTeamsEl = document.getElementById('liveMatchTeams');
+
+function renderLiveMatch() {
+  const liveMatch = latestHubData?.liveMatch;
+  const hasLive = !!(liveMatch && liveMatch.teams && (liveMatch.teams[0]?.length > 0 || liveMatch.teams[1]?.length > 0));
+
+  liveMatchEmptyEl.hidden = hasLive;
+  liveMatchContentEl.hidden = !hasLive;
+  if (!hasLive) return;
+
+  const pred = liveMatch.prediction;
+  if (pred) {
+    const winnerName = pred.predictedWinner === 0 ? 'BLUE' : 'ORANGE';
+    const chance = pred.predictedWinner === 0 ? pred.team0WinChance : pred.team1WinChance;
+    document.getElementById('predictionWinnerText').textContent = `${winnerName} TEAM HAS A ${chance}% CHANCE OF WINNING`;
+    document.getElementById('blueAvgRating').textContent = pred.avgRating0.toFixed(2);
+    document.getElementById('orangeAvgRating').textContent = pred.avgRating1.toFixed(2);
+    document.getElementById('predictionBarTeam0').style.width = `${pred.team0WinChance}%`;
+  }
+
+  renderScoreboardTeams(liveMatchTeamsEl, {
+    finalScore: liveMatch.finalScore,
+    teams: liveMatch.teams,
+    localAccountId: latestHubData?.playerName,
+  });
+
+  attachPlayerClickHandlers(liveMatchTeamsEl);
+}
+
+function attachPlayerClickHandlers(container) {
+  const playedWithMap = new Map((latestHubData?.playedWith ?? []).map((p) => [p.accountId, p]));
+
+  container.querySelectorAll('.scoreboard-row').forEach((row) => {
+    const accountId = row.dataset.accountId;
+    if (!accountId) return;
+
+    const nameEl = row.querySelector('.player-name') || row.querySelector('td:nth-child(2)');
+    if (nameEl && !nameEl.querySelector('.played-with-tag')) {
+      nameEl.classList.add('player-name-link');
+      nameEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPlayerDetail(accountId);
+      });
+
+      const pw = playedWithMap.get(accountId);
+      if (pw) {
+        const tag = document.createElement('span');
+        if (pw.matchesTogether > 0) {
+          tag.className = 'played-with-tag played-with-tag--teammate';
+          tag.textContent = `Teammate (${pw.matchesTogether}g · ${pw.winRateTogether}%)`;
+        } else if (pw.matchesAgainst > 0) {
+          tag.className = 'played-with-tag played-with-tag--rival';
+          tag.textContent = `Rival (${pw.matchesAgainst}g · ${pw.winRateAgainst}%)`;
+        }
+        nameEl.appendChild(tag);
+      }
+    }
+  });
+}
+
+// ---------------------------------------------------------------------
+// Maps View
+// ---------------------------------------------------------------------
+
+const mapsEmptyEl = document.getElementById('mapsEmpty');
+const mapsContentEl = document.getElementById('mapsContent');
+const mapsPanelEl = document.getElementById('mapsPanel');
+const mapsBodyEl = document.getElementById('mapsBody');
+const mapsTableEl = document.getElementById('mapsTable');
+const mapsTilesetGrid = document.getElementById('mapsTilesetGrid');
+const mapTilesetFiltersEl = document.getElementById('mapTilesetFilters');
+
+let selectedMapTileset = 'all';
+let mapSortKey = 'timestamp';
+let mapSortDir = 'desc';
+
+function renderMapsTable() {
+  const mapData = latestHubData?.mapStats ?? { everyMap: [], tilesetSummary: [] };
+  const everyMap = mapData.everyMap ?? [];
+  const tilesetSummary = mapData.tilesetSummary ?? [];
+
+  const hasAny = everyMap.length > 0;
+  mapsEmptyEl.hidden = hasAny;
+  mapsContentEl.hidden = !hasAny;
+  if (!hasAny) return;
+
+  // --- Render Tileset Summary Tiles ---
+  mapsTilesetGrid.innerHTML = '';
+  for (const t of tilesetSummary) {
+    const tile = document.createElement('div');
+    tile.className = 'stat-tile';
+    const tilesetLabel = t.tileset.replace(/_Day$/i, '');
+    tile.innerHTML = `
+      <div class="stat-label">${escapeHtml(tilesetLabel)}</div>
+      <div class="stat-value">${t.winRate}%</div>
+      <div class="stat-sub">${t.wins}W - ${t.losses}L (${t.rounds} rounds)</div>
+    `;
+    mapsTilesetGrid.appendChild(tile);
+  }
+
+  // --- Filter and Sort Every Map Table ---
+  let filtered = everyMap;
+  if (selectedMapTileset !== 'all') {
+    filtered = filtered.filter((m) => m.tileset.toLowerCase() === selectedMapTileset.toLowerCase());
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    const av = a[mapSortKey];
+    const bv = b[mapSortKey];
+    const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+    return mapSortDir === 'asc' ? cmp : -cmp;
+  });
+
+  mapsBodyEl.innerHTML = '';
+  for (const m of sorted) {
+    const tr = document.createElement('tr');
+    const resultClass = m.won ? 'result-win' : 'result-loss';
+    const resultText = m.won ? 'WIN' : 'LOSS';
+
+    tr.innerHTML = `
+      <td style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-bright)">${escapeHtml(m.mapLabel)}</td>
+      <td style="text-align:center"><span class="source-badge source-badge--ranked">${escapeHtml(m.tileset)}</span></td>
+      <td>${escapeHtml(m.matchup)} <span style="font-size:11px;color:var(--text-muted)">· Round ${m.round}</span></td>
+      <td style="text-align:center" class="${resultClass}"><span style="font-weight:700;letter-spacing:.08em">${resultText}</span></td>
+    `;
+    mapsBodyEl.appendChild(tr);
+  }
+
+  // Active header sorting arrows
+  for (const th of mapsTableEl.querySelectorAll('th[data-mapsort]')) {
+    th.classList.toggle('sort-active', th.dataset.mapsort === mapSortKey);
+    th.querySelector('.sort-arrow')?.remove();
+    if (th.dataset.mapsort === mapSortKey) {
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = mapSortDir === 'asc' ? '▲' : '▼';
+      th.appendChild(arrow);
+    }
+  }
+}
+
+// Category filter clicks
+mapTilesetFiltersEl?.querySelectorAll('.cat-pill').forEach((pill) => {
+  pill.addEventListener('click', () => {
+    mapTilesetFiltersEl.querySelectorAll('.cat-pill').forEach((p) => p.classList.remove('active'));
+    pill.classList.add('active');
+    selectedMapTileset = pill.dataset.mapcat;
+    renderMapsTable();
+  });
+});
+
+// Table sorting header clicks
+mapsTableEl?.querySelectorAll('th[data-mapsort]').forEach((th) => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.mapsort;
+    if (mapSortKey === key) {
+      mapSortDir = mapSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      mapSortKey = key;
+      mapSortDir = 'desc';
+    }
+    renderMapsTable();
+  });
+});
+
+// ---------------------------------------------------------------------
+// Played With View
+// ---------------------------------------------------------------------
+
+const playedWithEmptyEl = document.getElementById('playedWithEmpty');
+const playedWithContentEl = document.getElementById('playedWithContent');
+const playedWithBodyEl = document.getElementById('playedWithBody');
+const playedWithTableEl = document.getElementById('playedWithTable');
+const playedWithCategoryFiltersEl = document.getElementById('playedWithCategoryFilters');
+const playedWithSearchInputEl = document.getElementById('playedWithSearchInput');
+
+const pwTotalPlayersEl = document.getElementById('pwTotalPlayers');
+const pwTopTeammateEl = document.getElementById('pwTopTeammate');
+const pwTopTeammateSubEl = document.getElementById('pwTopTeammateSub');
+const pwTopRivalEl = document.getElementById('pwTopRival');
+const pwTopRivalSubEl = document.getElementById('pwTopRivalSub');
+const pwAvgWinRateEl = document.getElementById('pwAvgWinRate');
+
+let selectedPwCategory = 'all';
+let pwSearchQuery = '';
+let pwSortKey = 'totalMatches';
+let pwSortDir = 'desc';
+
+function renderPlayedWithTable() {
+  const playedWithList = latestHubData?.playedWithStats ?? latestHubData?.playedWith ?? [];
+  const hasAny = playedWithList.length > 0;
+  playedWithEmptyEl.hidden = hasAny;
+  playedWithContentEl.hidden = !hasAny;
+  if (!hasAny) return;
+
+  pwTotalPlayersEl.textContent = playedWithList.length;
+
+  const topTeammate = [...playedWithList].sort((a, b) => b.matchesTogether - a.matchesTogether)[0];
+  if (topTeammate && topTeammate.matchesTogether > 0) {
+    pwTopTeammateEl.textContent = topTeammate.latestName;
+    pwTopTeammateSubEl.textContent = `${topTeammate.matchesTogether}g · ${topTeammate.winRateTogether}% WR`;
+  } else {
+    pwTopTeammateEl.textContent = '—';
+    pwTopTeammateSubEl.textContent = '0 games';
+  }
+
+  const topRival = [...playedWithList].sort((a, b) => b.matchesAgainst - a.matchesAgainst)[0];
+  if (topRival && topRival.matchesAgainst > 0) {
+    pwTopRivalEl.textContent = topRival.latestName;
+    pwTopRivalSubEl.textContent = `${topRival.matchesAgainst}g · ${topRival.winRateAgainst}% WR`;
+  } else {
+    pwTopRivalEl.textContent = '—';
+    pwTopRivalSubEl.textContent = '0 games';
+  }
+
+  const teamGames = playedWithList.filter((p) => p.matchesTogether > 0);
+  const totalTeamGames = teamGames.reduce((acc, p) => acc + p.matchesTogether, 0);
+  const totalTeamWins = teamGames.reduce((acc, p) => acc + p.winsTogether, 0);
+  const overallTeamWr = totalTeamGames > 0 ? Math.round((totalTeamWins / totalTeamGames) * 100) : 0;
+  pwAvgWinRateEl.textContent = `${overallTeamWr}%`;
+
+  let filtered = playedWithList;
+  if (selectedPwCategory === 'teammates') {
+    filtered = filtered.filter((p) => p.matchesTogether > 0);
+  } else if (selectedPwCategory === 'rivals') {
+    filtered = filtered.filter((p) => p.matchesAgainst > 0);
+  }
+
+  if (pwSearchQuery.trim()) {
+    const q = pwSearchQuery.trim().toLowerCase();
+    filtered = filtered.filter(
+      (p) => p.latestName.toLowerCase().includes(q) || String(p.accountId).includes(q)
+    );
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    let av = a[pwSortKey];
+    let bv = b[pwSortKey];
+    if (pwSortKey === 'relation') {
+      av = a.matchesTogether >= a.matchesAgainst ? 'Teammate' : 'Rival';
+      bv = b.matchesTogether >= b.matchesAgainst ? 'Teammate' : 'Rival';
+    }
+    const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+    return pwSortDir === 'asc' ? cmp : -cmp;
+  });
+
+  playedWithBodyEl.innerHTML = '';
+  for (const p of sorted) {
+    const tr = document.createElement('tr');
+
+    const isTeammate = p.matchesTogether >= p.matchesAgainst;
+    const badgeText = isTeammate ? `Duo (${p.matchesTogether}g)` : `Rival (${p.matchesAgainst}g)`;
+    const badgeClass = isTeammate ? 'source-badge--ranked' : 'source-badge--inferred';
+
+    tr.innerHTML = `
+      <td>
+        <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-bright);display:flex;align-items:center;gap:10px">
+          <img class="pw-row-avatar" data-accountid="${p.accountId}" src="" alt="" style="width:28px;height:28px;border-radius:4px;object-fit:cover;background:rgba(255,255,255,0.05);border:1px solid var(--border-soft);display:none" />
+          <span>${escapeHtml(p.latestName)}</span>
+          <span style="font-size:11px;font-family:var(--font-body);color:var(--text-muted)">(${p.accountId.slice(-4)})</span>
+        </div>
+      </td>
+      <td style="text-align:center"><span class="source-badge ${badgeClass}">${badgeText}</span></td>
+      <td style="text-align:center;color:var(--accent);font-weight:600">${p.matchesTogether > 0 ? `${p.winsTogether}W - ${p.lossesTogether}L` : '—'}</td>
+      <td style="text-align:center;font-weight:600">${p.matchesTogether > 0 ? `${p.winRateTogether}%` : '—'}</td>
+      <td style="text-align:center;color:#e28a42;font-weight:600">${p.matchesAgainst > 0 ? `${p.winsAgainst}W - ${p.lossesAgainst}L` : '—'}</td>
+      <td style="text-align:center;font-weight:600">${p.matchesAgainst > 0 ? `${p.winRateAgainst}%` : '—'}</td>
+      <td style="text-align:center;font-family:var(--font-display);font-weight:700;color:var(--accent-bright)">${p.dplRating.toFixed(2)}</td>
+      <td style="text-align:right">
+        <button class="pw-steam-btn" data-accountid="${p.accountId}" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);font-family:var(--font-display);font-size:11px;padding:4px 8px;cursor:pointer">STEAM ↗</button>
+      </td>
+    `;
+
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.pw-steam-btn')) {
+        e.stopPropagation();
+        const accountId = e.target.closest('.pw-steam-btn').dataset.accountid;
+        window.hubAPI.openExternal(`https://steamcommunity.com/profiles/${accountId}`);
+        return;
+      }
+      openPlayerDetail(p.accountId);
+    });
+
+    playedWithBodyEl.appendChild(tr);
+
+    if (window.hubAPI?.getSteamAvatar && p.accountId) {
+      window.hubAPI.getSteamAvatar(p.accountId).then((avatarUrl) => {
+        if (avatarUrl) {
+          const img = tr.querySelector(`.pw-row-avatar[data-accountid="${p.accountId}"]`);
+          if (img) {
+            img.src = avatarUrl;
+            img.style.display = 'block';
+          }
+        }
+      });
+    }
+  }
+
+  for (const th of playedWithTableEl.querySelectorAll('th[data-pwsort]')) {
+    th.classList.toggle('sort-active', th.dataset.pwsort === pwSortKey);
+    th.querySelector('.sort-arrow')?.remove();
+    if (th.dataset.pwsort === pwSortKey) {
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = pwSortDir === 'asc' ? '▲' : '▼';
+      th.appendChild(arrow);
+    }
+  }
+}
+
+playedWithCategoryFiltersEl?.querySelectorAll('.cat-pill').forEach((pill) => {
+  pill.addEventListener('click', () => {
+    playedWithCategoryFiltersEl.querySelectorAll('.cat-pill').forEach((p) => p.classList.remove('active'));
+    pill.classList.add('active');
+    selectedPwCategory = pill.dataset.pwcat;
+    renderPlayedWithTable();
+  });
+});
+
+playedWithSearchInputEl?.addEventListener('input', (e) => {
+  pwSearchQuery = e.target.value;
+  renderPlayedWithTable();
+});
+
+playedWithTableEl?.querySelectorAll('th[data-pwsort]').forEach((th) => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.pwsort;
+    if (pwSortKey === key) {
+      pwSortDir = pwSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      pwSortKey = key;
+      pwSortDir = 'desc';
+    }
+    renderPlayedWithTable();
+  });
+});
+
+// ---------------------------------------------------------------------
+// Player Quick Reference Modal
+// ---------------------------------------------------------------------
+
+const playerDetailBackdrop = document.getElementById('playerDetailBackdrop');
+const pdName = document.getElementById('pdName');
+const pdAccountId = document.getElementById('pdAccountId');
+const pdRating = document.getElementById('pdRating');
+const pdKdr = document.getElementById('pdKdr');
+const pdKdaSub = document.getElementById('pdKdaSub');
+const pdAdr = document.getElementById('pdAdr');
+const pdKastSub = document.getElementById('pdKastSub');
+const pdTeammateText = document.getElementById('pdTeammateText');
+const pdOpponentText = document.getElementById('pdOpponentText');
+const pdAvatar = document.getElementById('pdAvatar');
+
+let currentPdAccountId = null;
+
+async function openPlayerDetail(accountId) {
+  currentPdAccountId = accountId;
+  if (pdAvatar) {
+    pdAvatar.src = '';
+    pdAvatar.hidden = true;
+  }
+  const p = await window.hubAPI.getPlayerDetail(accountId);
+  if (!p) {
+    pdName.textContent = `Player #${accountId.slice(-4)}`;
+    pdAccountId.textContent = `Steam ID: ${accountId}`;
+    pdRating.textContent = '1.00';
+    pdKdr.textContent = '0.00';
+    pdKdaSub.textContent = '0 - 0 - 0';
+    pdAdr.textContent = '0';
+    pdKastSub.textContent = '0% KAST';
+    pdTeammateText.textContent = '0g · 0% WR';
+    pdOpponentText.textContent = '0g · 0% WR';
+  } else {
+    pdName.textContent = p.latestName || p.accountId;
+    pdAccountId.textContent = `Steam ID: ${p.accountId}`;
+    pdRating.textContent = p.dplRating.toFixed(2);
+    pdKdr.textContent = p.kdr.toFixed(2);
+    pdKdaSub.textContent = `${p.kills}K - ${p.deaths}D - ${p.assists}A`;
+    pdAdr.textContent = p.adr;
+    pdKastSub.textContent = `${p.kast}% KAST`;
+    pdTeammateText.textContent = `${p.matchesTogether}g · ${p.winRateTogether}% WR`;
+    pdOpponentText.textContent = `${p.matchesAgainst}g · ${p.winRateAgainst}% WR`;
+  }
+  playerDetailBackdrop.hidden = false;
+
+  if (window.hubAPI?.getSteamAvatar && accountId) {
+    window.hubAPI.getSteamAvatar(accountId).then((avatarUrl) => {
+      if (avatarUrl && pdAvatar && currentPdAccountId === accountId) {
+        pdAvatar.src = avatarUrl;
+        pdAvatar.hidden = false;
+      }
+    });
+  }
+}
+
+pdSteamBtn?.addEventListener('click', () => {
+  if (currentPdAccountId) {
+    window.hubAPI.openExternal(`https://steamcommunity.com/profiles/${currentPdAccountId}`);
+  }
+});
+
+document.getElementById('pdCloseBtn')?.addEventListener('click', () => {
+  playerDetailBackdrop.hidden = true;
+});
+playerDetailBackdrop?.addEventListener('click', (e) => {
+  if (e.target === playerDetailBackdrop) playerDetailBackdrop.hidden = true;
+});
+
+// CSV Export Handler
+document.getElementById('exportCsvBtn')?.addEventListener('click', async () => {
+  const csvText = await window.hubAPI.exportCsv();
+  if (!csvText) return;
+  const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `due-process-match-history-${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// ---------------------------------------------------------------------
+// Weapons — ranked-only lifetime per-weapon stats (see match-archive.js's
+// getWeaponStats()). Headshots/HS% are null for a weapon stats.js has no
+// base-damage reference for (explosives, unidentified codes) — rendered as
+// "—" rather than a fake 0%, see stats.js's weaponBaseDamage comment.
+// ---------------------------------------------------------------------
+
+const weaponsBody = document.getElementById('weaponsBody');
+const weaponsEmptyEl = document.getElementById('weaponsEmpty');
+const weaponsContentEl = document.getElementById('weaponsContent');
+const weaponsTable = document.getElementById('weaponsTable');
+const weaponSearchInput = document.getElementById('weaponSearchInput');
+const categoryFiltersEl = document.getElementById('categoryFilters');
+
+let weaponSortKey = 'kills';
+let weaponSortDir = 'desc';
+let selectedCategory = 'all';
+let searchFilterQuery = '';
+
+function renderWeaponsTable() {
+  const weapons = latestHubData?.weaponStats ?? [];
+  const hasAny = weapons.length > 0;
+  weaponsEmptyEl.hidden = hasAny;
+  weaponsContentEl.hidden = !hasAny;
+  if (!hasAny) return;
+
+  // --- Render Summary Tiles ---
+  const totalKills = weapons.reduce((acc, w) => acc + w.kills, 0);
+  const totalHits = weapons.reduce((acc, w) => acc + (w.hits ?? 0), 0);
+  const totalHeadshots = weapons.reduce((acc, w) => acc + (w.headshots ?? 0), 0);
+
+  const topByKills = [...weapons].sort((a, b) => b.kills - a.kills)[0];
+  const topByDeaths = [...weapons].sort((a, b) => b.deaths - a.deaths)[0];
+
+  document.getElementById('weaponTotalKills').textContent = totalKills.toLocaleString();
+
+  if (topByKills && topByKills.kills > 0) {
+    document.getElementById('weaponTopName').textContent = topByKills.label;
+    document.getElementById('weaponTopSub').textContent = `${topByKills.kills} kills`;
+  } else {
+    document.getElementById('weaponTopName').textContent = '—';
+    document.getElementById('weaponTopSub').textContent = '0 kills';
+  }
+
+  document.getElementById('weaponOverallHs').textContent = totalHeadshots.toLocaleString();
+  const overallHsPct = totalHits > 0 ? Math.round((totalHeadshots / totalHits) * 100) : 0;
+  document.getElementById('weaponOverallHsSub').textContent = `${overallHsPct}% hit accuracy`;
+
+  if (topByDeaths && topByDeaths.deaths > 0) {
+    document.getElementById('weaponDeadliestName').textContent = topByDeaths.label;
+    document.getElementById('weaponDeadliestSub').textContent = `${topByDeaths.deaths} deaths`;
+  } else {
+    document.getElementById('weaponDeadliestName').textContent = '—';
+    document.getElementById('weaponDeadliestSub').textContent = '0 deaths';
+  }
+
+  // --- Filter by Category & Search Query ---
+  let filtered = weapons;
+  if (selectedCategory !== 'all') {
+    filtered = filtered.filter((w) => (w.category ?? '').toLowerCase().includes(selectedCategory.toLowerCase()));
+  }
+  if (searchFilterQuery.trim()) {
+    const q = searchFilterQuery.trim().toLowerCase();
+    filtered = filtered.filter((w) => w.label.toLowerCase().includes(q) || (w.category ?? '').toLowerCase().includes(q));
+  }
+
+  // --- Sort Weapons ---
+  const sorted = [...filtered].sort((a, b) => {
+    const av = a[weaponSortKey];
+    const bv = b[weaponSortKey];
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+    return weaponSortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const maxKills = Math.max(...weapons.map((w) => w.kills), 1);
+
+  weaponsBody.innerHTML = '';
+  if (sorted.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">No weapons matching current filter.</td>`;
+    weaponsBody.appendChild(tr);
+  } else {
+    for (const w of sorted) {
+      const tr = document.createElement('tr');
+      const hs = w.headshots === null ? '<span class="no-data">—</span>' : w.headshots;
+      const hsPct = w.hsPercent === null ? '<span class="no-data">—</span>' : `<span class="hs-badge">${w.hsPercent}%</span>`;
+      const killsPct = Math.round((w.kills / maxKills) * 100);
+
+      const specsList = [];
+      if (w.fireType && w.fireType !== 'Unknown') specsList.push(w.fireType);
+      if (w.rpm) specsList.push(`${w.rpm} RPM`);
+      if (w.baseDamage) specsList.push(`${w.baseDamage} DMG`);
+      const specsStr = specsList.length > 0 ? specsList.join(' · ') : 'Standard Weapon';
+      const wikiUrl = w.wikiUrl || `https://dueprocess.fandom.com/wiki/${encodeURIComponent(w.label)}`;
+      const imgHtml = w.imageUrl
+        ? `<img src="${w.imageUrl}" alt="${escapeHtml(w.label)}" style="width:68px;height:38px;object-fit:contain;background:rgba(0,0,0,0.35);padding:2px;border:1px solid var(--border-soft);border-radius:3px">`
+        : `<div style="width:68px;height:38px;background:rgba(255,255,255,0.03);border:1px solid var(--border-soft);display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:10px;font-family:var(--font-display)">WPN</div>`;
+
+      tr.innerHTML = `
+        <td>
+          <div style="display:flex;align-items:center;gap:14px;padding:4px 0">
+            <a href="${wikiUrl}" class="weapon-wiki-btn" data-wikiurl="${wikiUrl}" title="View ${escapeHtml(w.label)} on Fandom Wiki ↗" style="display:block;cursor:pointer;transition:transform 0.15s ease">
+              ${imgHtml}
+            </a>
+            <div class="weapon-cell">
+              <span class="weapon-cat">${escapeHtml((w.category ?? 'WEAPON').toUpperCase())}</span>
+              <a href="${wikiUrl}" class="weapon-wiki-btn" data-wikiurl="${wikiUrl}" title="View ${escapeHtml(w.label)} on Fandom Wiki ↗" style="color:var(--text-bright);text-decoration:none">
+                <span class="weapon-title" style="color:var(--text-bright);font-weight:700">${escapeHtml(w.label)} <span style="font-size:11px;color:var(--accent);margin-left:2px">↗</span></span>
+              </a>
+              <span class="weapon-specs">${escapeHtml(specsStr)}</span>
+            </div>
+          </div>
+        </td>
+        <td style="text-align:center">
+          <div class="kills-col">
+            <span style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--accent)">${w.kills}</span>
+            <div class="kills-bar"><span style="width:${killsPct}%"></span></div>
+          </div>
+        </td>
+        <td style="text-align:center;font-family:var(--font-display);font-size:16px;font-weight:600;color:${w.deaths > 0 ? 'var(--loss)' : 'var(--text-muted)'}">${w.deaths}</td>
+        <td style="text-align:center;font-family:var(--font-display);font-size:15px">${hs}</td>
+        <td style="text-align:center">${hsPct}</td>
+        <td style="text-align:center;font-family:var(--font-display);font-size:15px;font-weight:600">${w.killsPerRound.toFixed(2)}</td>
+      `;
+
+      tr.querySelectorAll('.weapon-wiki-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const targetUrl = btn.dataset.wikiurl;
+          if (targetUrl && window.hubAPI?.openExternal) {
+            window.hubAPI.openExternal(targetUrl);
+          }
+        });
+      });
+
+      weaponsBody.appendChild(tr);
+    }
+  }
+
+  for (const th of weaponsTable.querySelectorAll('th[data-sort]')) {
+    th.classList.toggle('sort-active', th.dataset.sort === weaponSortKey);
+    th.querySelector('.sort-arrow')?.remove();
+    if (th.dataset.sort === weaponSortKey) {
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = weaponSortDir === 'asc' ? '▲' : '▼';
+      th.appendChild(arrow);
+    }
+  }
+}
+
+for (const th of weaponsTable.querySelectorAll('th[data-sort]')) {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (weaponSortKey === key) {
+      weaponSortDir = weaponSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      weaponSortKey = key;
+      weaponSortDir = 'desc';
+    }
+    renderWeaponsTable();
+  });
+}
+
+categoryFiltersEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.cat-pill');
+  if (!btn) return;
+  selectedCategory = btn.dataset.cat;
+  categoryFiltersEl.querySelectorAll('.cat-pill').forEach((el) => el.classList.toggle('active', el === btn));
+  renderWeaponsTable();
+});
+
+weaponSearchInput.addEventListener('input', (e) => {
+  searchFilterQuery = e.target.value;
+  renderWeaponsTable();
+});
 
 // Shared by Home's unified feed and both History views — same row shape
 // (result/map/score/K-D-A/played/delete) everywhere; only Home tags rows
@@ -143,7 +771,7 @@ function renderMatchRows(tbody, matches, opts = {}) {
       : '';
     tr.innerHTML = `
       <td class="${resultClass}" style="letter-spacing:.1em">${resultText}</td>
-      <td>${escapeHtml(m.mapLabel ?? '—')}${sourceBadge}${inferredBadge}</td>
+      <td>${escapeHtml(m.matchup || `${m.team0Name || 'Blue Team'} vs ${m.team1Name || 'Orange Team'}`)}${sourceBadge}${inferredBadge}</td>
       <td style="text-align:center"><span class="${m.won ? '' : 'result-loss'}">${m.myScore}</span> – <span class="${m.won ? 'result-win' : ''}">${m.oppScore}</span></td>
       <td style="text-align:center">${m.kills} - ${m.deaths} - ${m.assists}</td>
       <td style="text-align:right;font-family:var(--font-body);font-size:11px;color:var(--text-muted)">${timeAgo(m.timestamp)}</td>

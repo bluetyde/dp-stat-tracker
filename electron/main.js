@@ -11,7 +11,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { exec } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, screen, globalShortcut, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, globalShortcut, ipcMain, shell } = require('electron');
 
 const config = require('./config');
 const { MatchArchive } = require('./match-archive');
@@ -306,15 +306,73 @@ function sendOverlayUpdate(match, stats) {
   });
 }
 
+// Prefers the live-tailing parser (has this session's freshest name, if any
+// match data has been fed yet) but falls back to the archives, which persist
+// each match's `teams` rows durably. The fallback matters: sendHubUpdate()
+// fires once during startup (main()'s Step 2) BEFORE startLogTailing() has
+// fed `parser` anything at all, so relying on the parser alone left the name
+// blank on every boot where nothing new got recorded that session — see
+// match-archive.js's getPlayerName() doc comment.
 function currentPlayerName() {
   const accountId = localAccountId || rankedArchive.getLocalAccountId();
   if (!accountId) return null;
-  const matches = parser.getMatches();
-  for (let i = matches.length - 1; i >= 0; i -= 1) {
-    const known = matches[i].players.get(accountId);
-    if (known) return known.name;
+
+  if (parser) {
+    const matches = parser.getMatches();
+    for (let i = matches.length - 1; i >= 0; i -= 1) {
+      const known = matches[i].players.get(accountId);
+      if (known) return known.name;
+    }
   }
-  return null;
+
+  return rankedArchive.getPlayerName(accountId) ?? otherArchive.getPlayerName(accountId);
+}
+
+function computeWinPrediction(teams) {
+  if (!teams || !teams[0] || !teams[1]) return null;
+
+  const playedWithMap = new Map((rankedArchive ? rankedArchive.getPlayedWithStats() : []).map((p) => [p.accountId, p.dplRating]));
+
+  const getTeamAvgRating = (teamRows) => {
+    if (!teamRows || teamRows.length === 0) return 1.0;
+    const sum = teamRows.reduce((acc, r) => {
+      const rating = playedWithMap.get(r.accountId) ?? r.dplRating ?? 1.0;
+      return acc + rating;
+    }, 0);
+    return sum / teamRows.length;
+  };
+
+  const avg0 = getTeamAvgRating(teams[0]);
+  const avg1 = getTeamAvgRating(teams[1]);
+
+  const diff = avg0 - avg1;
+  const prob0 = 1 / (1 + Math.pow(10, -diff / 0.50));
+  const winRate0 = Math.round(prob0 * 100);
+  const winRate1 = 100 - winRate0;
+
+  return {
+    avgRating0: Math.round(avg0 * 100) / 100,
+    avgRating1: Math.round(avg1 * 100) / 100,
+    team0WinChance: winRate0,
+    team1WinChance: winRate1,
+    predictedWinner: winRate0 >= 50 ? 0 : 1,
+  };
+}
+
+function getLiveMatchState() {
+  if (!parser || !parser.current) return null;
+  const match = parser.current;
+  const stats = computeMatchStats(match);
+  const prediction = computeWinPrediction(stats.teams);
+  return {
+    status: match.status,
+    liveMatchId: match.liveMatchId,
+    roundCount: stats.roundCount,
+    finalScore: stats.finalScore,
+    teams: stats.teams,
+    currentMap: mapTracker.peekCurrent().at(-1)?.label ?? null,
+    prediction,
+  };
 }
 
 function sendHubUpdate() {
@@ -327,9 +385,47 @@ function sendHubUpdate() {
     recentMatches: rankedArchive.getRecentMatches(8),
     otherMatches: otherArchive.getRecentMatches(8),
     topWeapons: rankedArchive.getTopWeapons(4),
+    weaponStats: rankedArchive.getWeaponStats(),
     killsTrend: rankedArchive.getRecentKillsTrend(12),
+    playedWith: rankedArchive.getPlayedWithStats(),
+    playedWithStats: rankedArchive.getPlayedWithStats(),
+    mapStats: rankedArchive.getMapStats(),
+    liveMatch: getLiveMatchState(),
   });
 }
+
+const steamAvatarCache = new Map();
+const httpsClient = require('node:https');
+
+ipcMain.handle('hub:get-steam-avatar', async (_event, accountId) => {
+  if (!accountId) return null;
+  if (steamAvatarCache.has(accountId)) {
+    return steamAvatarCache.get(accountId);
+  }
+  return new Promise((resolve) => {
+    const url = `https://steamcommunity.com/profiles/${accountId}?xml=1`;
+    const req = httpsClient.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        const match = /<avatarFull><!\[CDATA\[([^\]]+)\]\]><\/avatarFull>/.exec(body) ||
+                      /<avatarFull>([^<]+)<\/avatarFull>/.exec(body) ||
+                      /<avatarMedium><!\[CDATA\[([^\]]+)\]\]><\/avatarMedium>/.exec(body) ||
+                      /<avatarMedium>([^<]+)<\/avatarMedium>/.exec(body);
+        const avatarUrl = match ? match[1] : null;
+        if (avatarUrl) {
+          steamAvatarCache.set(accountId, avatarUrl);
+        }
+        resolve(avatarUrl);
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(4000, () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+});
 
 ipcMain.on('hub:request-refresh', () => {
   sendHubUpdate();
@@ -342,20 +438,20 @@ ipcMain.handle('hub:get-match-detail', (_event, matchId) => {
   return rankedArchive.getMatch(matchId) ?? otherArchive.getMatch(matchId);
 });
 
-// Delete a match from whichever archive it lives in, then push fresh
-// (re-derived, since totals are summed on read) totals/lists to the Hub.
-//
-// FLAGGED BEHAVIOR: dedup (hasRecordedMatch) only ever looks at what's
-// CURRENTLY in the archive files. Deleting an entry makes that MatchId
-// "unseen" again — if it's still reachable in Player.log or Player-prev.log
-// the next time a scan runs, it WILL be re-recorded. This is a deliberate
-// consequence of archive-state-based dedup (see match-archive.js's
-// deleteMatch doc comment), not prevented or specially handled here.
-// Full (uncapped) match lists for the Ranked History / Other History nav
-// views — deliberately separate from hub:update's regular payload (which
-// stays capped at getRecentMatches(8) for the Home feed) so switching to a
-// history view doesn't inflate every routine push once an archive grows
-// into the hundreds of matches. Fetched on demand when the view is opened.
+ipcMain.handle('hub:get-player-detail', (_event, accountId) => {
+  return rankedArchive.getSinglePlayedWith(accountId);
+});
+
+ipcMain.handle('hub:export-csv', () => {
+  return rankedArchive.exportCsv();
+});
+
+ipcMain.handle('hub:open-external', (_event, url) => {
+  if (url && typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+    shell.openExternal(url);
+  }
+});
+
 ipcMain.handle('hub:get-ranked-history', () => {
   return rankedArchive.getRecentMatches(Number.MAX_SAFE_INTEGER);
 });

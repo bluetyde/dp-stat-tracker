@@ -27,4 +27,8 @@ contextBridge.exposeInMainWorld('hubAPI', {
   // Full (uncapped) match lists for the Ranked History / Other History nav views.
   getRankedHistory: () => ipcRenderer.invoke('hub:get-ranked-history'),
   getOtherHistory: () => ipcRenderer.invoke('hub:get-other-history'),
+  getPlayerDetail: (accountId) => ipcRenderer.invoke('hub:get-player-detail', accountId),
+  getSteamAvatar: (accountId) => ipcRenderer.invoke('hub:get-steam-avatar', accountId),
+  exportCsv: () => ipcRenderer.invoke('hub:export-csv'),
+  openExternal: (url) => ipcRenderer.invoke('hub:open-external', url),
 });
