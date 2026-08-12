@@ -8,9 +8,12 @@ const os = require('node:os');
 const path = require('node:path');
 
 const PLAYER_LOG_PATH = path.join(
-  'C:\\Users',
-  os.userInfo().username,
-  'AppData\\LocalLow\\Giant Enemy Crab\\Due Process\\Player.log'
+  os.homedir(),
+  'AppData',
+  'LocalLow',
+  'Giant Enemy Crab',
+  'Due Process',
+  'Player.log'
 );
 
 module.exports = {

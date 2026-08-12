@@ -588,6 +588,8 @@ async function main() {
   computeMatchStats = statsModule.computeMatchStats;
   parser = new DueProcessLogParser();
 
+  await app.whenReady();
+
   // Step 1: load both archives directly — match-archive.json is the totals
   // source of truth (match-archive.js sums it on read), so the Hub can show
   // correct history the moment its window is ready, with no rescanning
@@ -596,8 +598,6 @@ async function main() {
   rankedArchive = new MatchArchive(path.join(userDataDir, 'match-archive.json'));
   otherArchive = new MatchArchive(path.join(userDataDir, 'other-matches-archive.json'));
   localAccountId = rankedArchive.getLocalAccountId() || otherArchive.getLocalAccountId();
-
-  await app.whenReady();
 
   createOverlayWindow();
   createHubWindow();
