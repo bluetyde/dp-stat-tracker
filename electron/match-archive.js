@@ -448,18 +448,27 @@ class MatchArchive {
     return this.getPlayedWithStats().find((p) => p.accountId === accountId) ?? null;
   }
 
+  saveMapNote(mapName, note) {
+    if (!this.data.mapNotes) this.data.mapNotes = {};
+    this.data.mapNotes[mapName] = note;
+    this._save();
+  }
+
   /**
-   * Per-map and every-round map stats breakdown across all archived matches.
+   * Per-map layout, tileset, and every-round map stats breakdown across all archived matches.
    */
   getMapStats() {
     const byTileset = new Map();
+    const byMapName = new Map();
     const everyMap = [];
 
     const parseTilesetFromLabel = (label) => {
       if (!label) return 'Unknown';
       const m = /^\[([^\]]+)\]/.exec(label);
-      return m ? m[1] : 'Unknown';
+      return m ? m[1].replace(/_Day$/i, '') : 'Unknown';
     };
+
+    const mapNotes = this.data.mapNotes || {};
 
     for (const match of this.data.matches) {
       const team0 = match.team0Name || 'Blue Team';
@@ -490,35 +499,53 @@ class MatchArchive {
           mapName = item.replace(/^\[[^\]]+\]\s*/, '');
         } else if (item && typeof item === 'object') {
           mapLabel = item.mapLabel ?? 'Unknown Map';
-          tileset = item.tileset && item.tileset !== 'Unknown' ? item.tileset : parseTilesetFromLabel(mapLabel);
+          tileset = item.tileset && item.tileset !== 'Unknown' ? item.tileset.replace(/_Day$/i, '') : parseTilesetFromLabel(mapLabel);
           mapName = item.mapName ?? mapLabel.replace(/^\[[^\]]+\]\s*/, '');
           won = item.won ?? match.won;
           roundNum = item.round ?? (i + 1);
         }
 
-        everyMap.push({
+        const cleanTileset = tileset.replace(/_Day$/i, '');
+        const cleanMapName = mapName.replace(/^\[[^\]]+\]\s*/, '').replace(/_Day$/i, '');
+
+        const entry = {
           matchId: match.matchId,
           timestamp: match.timestamp,
           round: roundNum,
           mapLabel,
-          mapName,
-          tileset,
+          mapName: cleanMapName,
+          tileset: cleanTileset,
           matchup,
           won,
-        });
+        };
 
-        const existing = byTileset.get(tileset) ?? {
-          tileset,
+        everyMap.push(entry);
+
+        const existingT = byTileset.get(cleanTileset) ?? {
+          tileset: cleanTileset,
           rounds: 0,
           wins: 0,
           losses: 0,
         };
+        existingT.rounds += 1;
+        if (won) existingT.wins += 1;
+        else existingT.losses += 1;
+        byTileset.set(cleanTileset, existingT);
 
-        existing.rounds += 1;
-        if (won) existing.wins += 1;
-        else existing.losses += 1;
-
-        byTileset.set(tileset, existing);
+        const existingM = byMapName.get(cleanMapName) ?? {
+          mapName: cleanMapName,
+          tileset: cleanTileset,
+          timesPlayed: 0,
+          wins: 0,
+          losses: 0,
+          note: mapNotes[cleanMapName] || '',
+          history: [],
+        };
+        existingM.timesPlayed += 1;
+        if (won) existingM.wins += 1;
+        else existingM.losses += 1;
+        existingM.history.push(entry);
+        byMapName.set(cleanMapName, existingM);
       }
     }
 
@@ -529,8 +556,16 @@ class MatchArchive {
       }))
       .sort((a, b) => b.rounds - a.rounds);
 
+    const mapSummary = [...byMapName.values()]
+      .map((m) => ({
+        ...m,
+        winRate: m.timesPlayed > 0 ? Math.round((m.wins / m.timesPlayed) * 100) : 0,
+      }))
+      .sort((a, b) => b.timesPlayed - a.timesPlayed || b.wins - a.wins);
+
     return {
       everyMap: [...everyMap].reverse(), // most recent round maps first
+      mapSummary,
       tilesetSummary,
     };
   }

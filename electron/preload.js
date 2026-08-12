@@ -30,5 +30,6 @@ contextBridge.exposeInMainWorld('hubAPI', {
   getPlayerDetail: (accountId) => ipcRenderer.invoke('hub:get-player-detail', accountId),
   getSteamAvatar: (accountId) => ipcRenderer.invoke('hub:get-steam-avatar', accountId),
   exportCsv: () => ipcRenderer.invoke('hub:export-csv'),
+  saveMapNote: (mapName, note) => ipcRenderer.invoke('hub:save-map-note', mapName, note),
   openExternal: (url) => ipcRenderer.invoke('hub:open-external', url),
 });

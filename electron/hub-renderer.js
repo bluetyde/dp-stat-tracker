@@ -217,18 +217,22 @@ const mapsPanelEl = document.getElementById('mapsPanel');
 const mapsBodyEl = document.getElementById('mapsBody');
 const mapsTableEl = document.getElementById('mapsTable');
 const mapsTilesetGrid = document.getElementById('mapsTilesetGrid');
-const mapTilesetFiltersEl = document.getElementById('mapTilesetFilters');
+const mapHistoryBackdrop = document.getElementById('mapHistoryBackdrop');
+const mhMapTitle = document.getElementById('mhMapTitle');
+const mhTilesetBadge = document.getElementById('mhTilesetBadge');
+const mhBody = document.getElementById('mhBody');
+const mhCloseBtn = document.getElementById('mhCloseBtn');
 
 let selectedMapTileset = 'all';
-let mapSortKey = 'timestamp';
+let mapSortKey = 'timesPlayed';
 let mapSortDir = 'desc';
 
 function renderMapsTable() {
-  const mapData = latestHubData?.mapStats ?? { everyMap: [], tilesetSummary: [] };
-  const everyMap = mapData.everyMap ?? [];
+  const mapData = latestHubData?.mapStats ?? { mapSummary: [], tilesetSummary: [], everyMap: [] };
+  const mapSummary = mapData.mapSummary ?? [];
   const tilesetSummary = mapData.tilesetSummary ?? [];
 
-  const hasAny = everyMap.length > 0;
+  const hasAny = mapSummary.length > 0;
   mapsEmptyEl.hidden = hasAny;
   mapsContentEl.hidden = !hasAny;
   if (!hasAny) return;
@@ -247,8 +251,8 @@ function renderMapsTable() {
     mapsTilesetGrid.appendChild(tile);
   }
 
-  // --- Filter and Sort Every Map Table ---
-  let filtered = everyMap;
+  // --- Filter and Sort Map Summary Table ---
+  let filtered = mapSummary;
   if (selectedMapTileset !== 'all') {
     filtered = filtered.filter((m) => m.tileset.toLowerCase() === selectedMapTileset.toLowerCase());
   }
@@ -263,15 +267,46 @@ function renderMapsTable() {
   mapsBodyEl.innerHTML = '';
   for (const m of sorted) {
     const tr = document.createElement('tr');
-    const resultClass = m.won ? 'result-win' : 'result-loss';
-    const resultText = m.won ? 'WIN' : 'LOSS';
+    tr.style.cursor = 'pointer';
+    tr.title = 'Click to view played rounds history for this map layout';
+
+    const winClass = m.winRate >= 50 ? 'result-win' : 'result-loss';
 
     tr.innerHTML = `
-      <td style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-bright)">${escapeHtml(m.mapLabel)}</td>
-      <td style="text-align:center"><span class="source-badge source-badge--ranked">${escapeHtml(m.tileset)}</span></td>
-      <td>${escapeHtml(m.matchup)} <span style="font-size:11px;color:var(--text-muted)">· Round ${m.round}</span></td>
-      <td style="text-align:center" class="${resultClass}"><span style="font-weight:700;letter-spacing:.08em">${resultText}</span></td>
+      <td style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-bright)">
+        ${escapeHtml(m.mapName)}
+      </td>
+      <td style="text-align:center">
+        <span class="source-badge source-badge--ranked">${escapeHtml(m.tileset)}</span>
+      </td>
+      <td style="text-align:center;font-weight:600">
+        ${m.timesPlayed} Played <span style="font-size:12px;color:var(--text-muted)">(${m.wins}W - ${m.losses}L)</span>
+      </td>
+      <td style="text-align:center;font-family:var(--font-display);font-weight:700" class="${winClass}">
+        ${m.winRate}%
+      </td>
+      <td style="text-align:left" onclick="event.stopPropagation()">
+        <input type="text" class="map-note-input" data-mapname="${escapeHtml(m.mapName)}" value="${escapeHtml(m.note || '')}" placeholder="Add custom notes..." style="background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--text-bright);font-family:var(--font-body);font-size:12px;padding:5px 9px;border-radius:2px;width:92%;outline:none" />
+      </td>
     `;
+
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.map-note-input')) return;
+      openMapHistory(m);
+    });
+
+    const noteInput = tr.querySelector('.map-note-input');
+    if (noteInput) {
+      const handleSave = () => {
+        const newNote = noteInput.value.trim();
+        if (window.hubAPI?.saveMapNote) {
+          window.hubAPI.saveMapNote(m.mapName, newNote);
+        }
+      };
+      noteInput.addEventListener('change', handleSave);
+      noteInput.addEventListener('blur', handleSave);
+    }
+
     mapsBodyEl.appendChild(tr);
   }
 
@@ -287,6 +322,38 @@ function renderMapsTable() {
     }
   }
 }
+
+function openMapHistory(m) {
+  mhMapTitle.textContent = m.mapName;
+  mhTilesetBadge.textContent = `${m.tileset} · ${m.timesPlayed} Played (${m.wins}W - ${m.losses}L) · ${m.winRate}% Win Rate`;
+  
+  mhBody.innerHTML = '';
+  for (const h of m.history ?? []) {
+    const tr = document.createElement('tr');
+    const resultClass = h.won ? 'result-win' : 'result-loss';
+    const resultText = h.won ? 'WIN' : 'LOSS';
+    tr.innerHTML = `
+      <td style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-bright)">
+        ${escapeHtml(h.matchup)}
+      </td>
+      <td style="text-align:center;font-size:13px;color:var(--text-muted)">
+        Round ${h.round}
+      </td>
+      <td style="text-align:center" class="${resultClass}">
+        <span style="font-weight:700;letter-spacing:.08em">${resultText}</span>
+      </td>
+    `;
+    mhBody.appendChild(tr);
+  }
+  mapHistoryBackdrop.hidden = false;
+}
+
+mhCloseBtn?.addEventListener('click', () => {
+  mapHistoryBackdrop.hidden = true;
+});
+mapHistoryBackdrop?.addEventListener('click', (e) => {
+  if (e.target === mapHistoryBackdrop) mapHistoryBackdrop.hidden = true;
+});
 
 // Category filter clicks
 mapTilesetFiltersEl?.querySelectorAll('.cat-pill').forEach((pill) => {
@@ -763,18 +830,15 @@ function renderMatchRows(tbody, matches, opts = {}) {
     tr.title = 'Click for the full scoreboard';
     const resultClass = m.won ? 'result-win' : 'result-loss';
     const resultText = m.won ? 'WIN' : 'LOSS';
-    const inferredBadge = m.inferred
-      ? '<span class="inferred-badge" title="No matchEnded event was ever seen for this match — the game process exited before the client\'s normal end-of-match log sequence ran. Recorded from the last known round score instead.">INFERRED</span>'
-      : '';
     const sourceBadge = opts.tagSource
       ? `<span class="source-badge source-badge--${m.source}">${m.source === 'ranked' ? 'RANKED' : 'OTHER'}</span>`
       : '';
     tr.innerHTML = `
       <td class="${resultClass}" style="letter-spacing:.1em">${resultText}</td>
-      <td>${escapeHtml(m.matchup || `${m.team0Name || 'Blue Team'} vs ${m.team1Name || 'Orange Team'}`)}${sourceBadge}${inferredBadge}</td>
+      <td>${escapeHtml(m.matchup || `${m.team0Name || 'Blue Team'} vs ${m.team1Name || 'Orange Team'}`)}${sourceBadge}</td>
       <td style="text-align:center"><span class="${m.won ? '' : 'result-loss'}">${m.myScore}</span> – <span class="${m.won ? 'result-win' : ''}">${m.oppScore}</span></td>
-      <td style="text-align:center">${m.kills} - ${m.deaths} - ${m.assists}</td>
-      <td style="text-align:right;font-family:var(--font-body);font-size:11px;color:var(--text-muted)">${timeAgo(m.timestamp)}</td>
+      <td style="text-align:center;white-space:nowrap;font-family:var(--font-display);font-weight:600;min-width:90px">${m.kills} - ${m.deaths} - ${m.assists}</td>
+      <td style="text-align:right;font-family:var(--font-body);font-size:11px;color:var(--text-muted);white-space:nowrap">${timeAgo(m.timestamp)}</td>
       <td style="text-align:center"><button class="delete-match-btn" title="Delete this match" aria-label="Delete this match">&times;</button></td>
     `;
     tr.addEventListener('click', () => openMatchDetail(m.matchId));

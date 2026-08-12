@@ -527,7 +527,7 @@
   <aside>
     <div class="brand">
       <div class="name">Due<span class="accent">Process</span></div>
-      <div class="ver">Tracker v0.4</div>
+      <div class="ver">Tracker v0.5</div>
     </div>
     <nav>
       <div class="nav-item active" data-view="home"><span class="nav-dot"></span>Home</div>
@@ -865,7 +865,7 @@
             <button class="cat-pill" data-mapcat="Factory">Factory</button>
             <button class="cat-pill" data-mapcat="Dome">Dome</button>
             <button class="cat-pill" data-mapcat="CStore">CStore</button>
-            <button class="cat-pill" data-mapcat="Killhouse_Day">Killhouse</button>
+            <button class="cat-pill" data-mapcat="Killhouse">Killhouse</button>
           </div>
         </div>
 
@@ -874,10 +874,11 @@
           <table class="rows sortable" id="mapsTable">
             <thead>
               <tr>
-                <th data-mapsort="mapLabel">Map Name</th>
+                <th data-mapsort="mapName">Map Name</th>
                 <th data-mapsort="tileset" style="text-align:center">Set</th>
-                <th data-mapsort="matchup">Matchup & Round</th>
-                <th data-mapsort="won" style="text-align:center">Outcome</th>
+                <th data-mapsort="timesPlayed" style="text-align:center">Record</th>
+                <th data-mapsort="winRate" style="text-align:center">Win %</th>
+                <th style="text-align:left">Notes / Tags</th>
               </tr>
             </thead>
             <tbody id="mapsBody"></tbody>
@@ -938,7 +939,32 @@
       </div>
     </section>
   </div>
-  </main>
+
+  <div id="mapHistoryBackdrop" hidden>
+    <section id="mapHistoryCard" class="panel" style="width:680px;padding:24px;display:flex;flex-direction:column;gap:16px">
+      <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+      <header style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="kicker">Map layout history</div>
+          <h2 id="mhMapTitle" style="margin:4px 0 0;font-family:var(--font-display);font-size:26px;text-transform:uppercase;color:var(--text-bright)">—</h2>
+          <div id="mhTilesetBadge" class="source-badge source-badge--ranked" style="margin-top:6px"></div>
+        </div>
+        <button id="mhCloseBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:6px 14px;cursor:pointer">CLOSE</button>
+      </header>
+      <div class="panel" style="padding:16px;max-height:400px;overflow-y:auto">
+        <table class="rows" id="mhTable">
+          <thead>
+            <tr>
+              <th>Matchup</th>
+              <th style="text-align:center">Round</th>
+              <th style="text-align:center">Outcome</th>
+            </tr>
+          </thead>
+          <tbody id="mhBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
 
   <div id="matchDetailBackdrop" hidden>
     <section id="matchDetailCard" class="panel">

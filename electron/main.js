@@ -442,6 +442,10 @@ ipcMain.handle('hub:get-player-detail', (_event, accountId) => {
   return rankedArchive.getSinglePlayedWith(accountId);
 });
 
+ipcMain.handle('hub:save-map-note', (_event, mapName, note) => {
+  rankedArchive.saveMapNote(mapName, note);
+});
+
 ipcMain.handle('hub:export-csv', () => {
   return rankedArchive.exportCsv();
 });
