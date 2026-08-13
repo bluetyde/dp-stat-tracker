@@ -10,6 +10,7 @@
 // Plain JSON file on disk via plain Node `fs` — no Electron APIs. Portable
 // to a future Overwolf overlay the same way store.js was.
 //
+
 // TOTALS DESIGN CHOICE: lifetime totals (kills/deaths/wins/losses/etc.) are
 // computed by SUMMING this.data.matches on every read — nothing is cached
 // to disk. The earlier store.js kept a separate running `totals` object
@@ -259,7 +260,7 @@ class MatchArchive {
       // Same formula/scale as every other player's DPL Rating in Played
       // With — see computeDplRating's doc comment — just fed the local
       // player's own summed stats instead of a Played With aggregate.
-      dplRating: computeDplRating({ kills, deaths, damage, roundsCounted, kastRounds }),
+      dplRating: computeDplRating({ kills, deaths, assists, damage, roundsCounted, kastRounds, winRate }),
     };
   }
 
@@ -450,12 +451,16 @@ class MatchArchive {
         const kdr = p.deaths > 0 ? p.kills / p.deaths : p.kills;
         const adr = p.roundsCounted > 0 ? p.damage / p.roundsCounted : 0;
         const kastPct = p.roundsCounted > 0 ? Math.round((p.kastRounds / p.roundsCounted) * 100) : 0;
+        const playerWins = p.winsTogether + p.lossesAgainst;
+        const overallWinRate = totalMatches > 0 ? (playerWins / totalMatches) * 100 : 50;
         const dplRating = computeDplRating({
           kills: p.kills,
           deaths: p.deaths,
+          assists: p.assists,
           damage: p.damage,
           roundsCounted: p.roundsCounted,
           kastRounds: p.kastRounds,
+          winRate: overallWinRate,
         });
 
         return {
@@ -657,16 +662,27 @@ function csvField(value) {
 // The one place the DPL-style rating formula is computed — used by both
 // getPlayedWithStats() (rating for every OTHER player seen in a match) and
 // getLifetimeStats() (the local player's own rating, fed their own summed
-// kills/deaths/damage/roundsCounted/kastRounds instead of a Played With
-// aggregate). Same formula either way, so the two numbers stay directly
-// comparable on the same scale — the whole point of not reimplementing it.
-function computeDplRating({ kills, deaths, damage, roundsCounted, kastRounds }) {
+// kills/deaths/assists/damage/roundsCounted/kastRounds/winRate). Same formula
+// either way, so the two numbers stay directly comparable on the same scale.
+//
+// Super C Formula with KDA & KAST Buff + Win Rate Multiplier:
+// 1. Base Combat: 25% KDA, 25% KAST, 20% KPR, 20% ADR, 10% Survival
+// 2. Win Impact Multiplier: 0.65 + 0.70 * (WinRate / 100) (range 0.65x - 1.35x)
+function computeDplRating({ kills, deaths, assists = 0, damage, roundsCounted, kastRounds, winRate = 50 }) {
   if (roundsCounted <= 0) return 1.0;
   const kpr = kills / roundsCounted;
   const adr = damage / roundsCounted;
   const srv = Math.max(0, (roundsCounted - deaths) / roundsCounted);
   const kastPct = Math.round((kastRounds / roundsCounted) * 100);
-  return Math.round((0.35 * kpr + 0.3 * (adr / 100) + 0.2 * srv + 0.15 * (kastPct / 70)) * 100) / 100;
+
+  const kda = (kills + assists) / Math.max(1, deaths);
+  const kdaFactor = kda / 1.5; // 1.5 KDA = 1.0 baseline
+  const kastFactor = kastPct / 70; // 70% KAST = 1.0 baseline
+
+  const baseCombat = 0.25 * kdaFactor + 0.25 * kastFactor + 0.20 * kpr + 0.20 * (adr / 100) + 0.10 * srv;
+  const winImpact = 0.65 + 0.70 * (winRate / 100);
+
+  return Math.round(baseCombat * winImpact * 100) / 100;
 }
 
 module.exports = { MatchArchive };
