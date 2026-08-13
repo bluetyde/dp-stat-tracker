@@ -201,15 +201,11 @@ export function computeMatchStats(match, config = {}) {
       }
     }
 
-    // Damage totals, ADR buckets, weapon breakdown. Self-damage (a player
-    // catching themselves in their own Molotov/grenade) is skipped completely.
-    // Team damage (hitting a different teammate on the same side) is branch-
-    // excluded from enemy damage totals/ADR and credited to `teamDamage`.
-    // Confirmed against three real players in one match: bluetyde (+9 team
-    // damage), Afraid (+42), and Loc and Load (+59 across team grenade
-    // ticks) — each gap matched dp-stats.com's totals exactly once removed.
+    // Damage totals, ADR buckets, weapon breakdown. Both self-damage (a player
+    // catching themselves in their own Molotov/grenade) and team damage (hitting
+    // a teammate on the same side) are branch-excluded from enemy damage totals
+    // / ADR and credited to `teamDamage` (FF DMG).
     for (const d of round.damage) {
-      if (d.attackerId === d.victimId) continue;
       if (d.attackerSide === d.victimSide) {
         const accountId = entityToAccount.get(d.attackerId);
         if (accountId) ensure(accountId).teamDamage += d.damageDealt;
