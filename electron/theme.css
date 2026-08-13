@@ -211,9 +211,9 @@ a:hover {
 
 .player-row, .col-head-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, .6fr) minmax(0, .55fr) minmax(0, .8fr) minmax(0, .55fr) minmax(0, .55fr) minmax(0, .6fr) minmax(0, .65fr) minmax(0, .95fr);
-  gap: 6px;
-  padding: 8px 12px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, .6fr) minmax(0, .55fr) minmax(0, .8fr) minmax(0, .55fr) minmax(0, .55fr) minmax(0, .75fr) minmax(0, .65fr) minmax(0, .95fr);
+  gap: 7px;
+  padding: 11px 16px;
   align-items: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
