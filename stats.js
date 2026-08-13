@@ -89,7 +89,7 @@ function isHeadshotDamage(damageSource, damageDealt) {
 // windows below are placeholders, not derived from a known tick-rate.
 export const DEFAULT_CONFIG = {
   // Minimum damage a teammate must have dealt to the victim to be credited with an assist.
-  assistDamageThreshold: 20,
+  assistDamageThreshold: 25,
   // Full-round assist window (matching web/dp-stats behavior)
   assistTimeWindowTicks: Infinity,
   // 150 ticks (~7.5s) trade window (matching web/dp-stats KAST behavior)
