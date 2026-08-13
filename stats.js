@@ -31,6 +31,13 @@ export const weaponNames = {
   14: 'TUB-12',
   15: 'Auto Shotgun',
   17: 'KR82U',
+  // Identified from log evidence, not the original community spreadsheet:
+  // damage-per-hit landed exactly on Gruber-5's baseDamage (22) across two
+  // separate players' full damage logs in the same match, and every hit
+  // but one occurred while the attacker was on Defense — matching
+  // Gruber-SD's confirmed status as the silenced, Defender-exclusive
+  // variant of the Gruber-5 (see dueprocess.fandom.com/wiki/Weapons).
+  19: 'Gruber-SD',
   50: 'Grenade',
   51: 'Molotov Cocktail',
 };
@@ -54,6 +61,11 @@ export const weaponMeta = {
   14: { label: 'TUB-12', category: 'Shotgun', fireType: 'Pump', baseDamage: 20, rpm: 60, wikiUrl: 'https://dueprocess.fandom.com/wiki/TUB-12', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/b/bf/Tub.png' },
   15: { label: 'Auto Shotgun', category: 'Shotgun', fireType: 'Auto', baseDamage: 20, rpm: 240, wikiUrl: 'https://dueprocess.fandom.com/wiki/Auto_Shotgun', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/4/47/Autoshotgun.png' },
   17: { label: 'KR82U', category: 'Assault Rifle', fireType: 'Auto', baseDamage: 30, rpm: 540, wikiUrl: 'https://dueprocess.fandom.com/wiki/KR82U', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/f/fd/KR82U.png' },
+  // Same baseDamage/rpm as Gruber-5 (4) — a suppressor doesn't change
+  // damage, only sound/recoil. No dedicated wiki page exists yet, hence
+  // the generic Weapons-page link and no imageUrl (same pattern as
+  // Grenade/Molotov below).
+  19: { label: 'Gruber-SD', category: 'Submachine Gun', fireType: 'Auto', baseDamage: 22, rpm: 720, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
   50: { label: 'Grenade', category: 'Explosive', fireType: 'Throwable', baseDamage: null, rpm: null, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
   51: { label: 'Molotov Cocktail', category: 'Explosive', fireType: 'Throwable', baseDamage: null, rpm: null, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
 };
@@ -207,11 +219,18 @@ export function computeMatchStats(match, config = {}) {
       agg.weaponRoundsUsed.get(d.damageSource).add(roundNumber);
     }
 
-    // Kills / deaths.
+    // Kills / deaths. Both sides are present directly on the raw Kill log
+    // line (attackerSide/victimSide), so a team kill (friendly fire) is
+    // simply attackerSide === victimSide — confirmed against a real match
+    // with a "DISHONORABLY DISCHARGED" killfeed line (the game's own
+    // team-kill callout) landing on exactly this case. The victim still
+    // died either way, so deaths/weaponDeaths are unaffected; only the
+    // killer's kill credit is withheld.
     for (const k of round.kills) {
       const killerAccount = entityToAccount.get(k.attackerId);
       const victimAccount = entityToAccount.get(k.victimId);
-      if (killerAccount) {
+      const isTeamKill = k.attackerSide === k.victimSide;
+      if (killerAccount && !isTeamKill) {
         const agg = ensure(killerAccount);
         agg.kills += 1;
         agg.weaponKills.set(k.damageSource, (agg.weaponKills.get(k.damageSource) ?? 0) + 1);
@@ -257,7 +276,7 @@ export function computeMatchStats(match, config = {}) {
     for (const accountId of assistedThisRound) kastAccountIds.add(accountId);
     for (const k of round.kills) {
       const killerAccount = entityToAccount.get(k.attackerId);
-      if (killerAccount) kastAccountIds.add(killerAccount);
+      if (killerAccount && k.attackerSide !== k.victimSide) kastAccountIds.add(killerAccount);
     }
     for (const k of round.kills) {
       const victimAccount = entityToAccount.get(k.victimId);

@@ -53,6 +53,10 @@ const WEAPON_META = {
   14: { label: 'TUB-12', category: 'Shotgun', fireType: 'Pump', baseDamage: 20, rpm: 60, wikiUrl: 'https://dueprocess.fandom.com/wiki/TUB-12', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/b/bf/Tub.png' },
   15: { label: 'Auto Shotgun', category: 'Shotgun', fireType: 'Auto', baseDamage: 20, rpm: 240, wikiUrl: 'https://dueprocess.fandom.com/wiki/Auto_Shotgun', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/4/47/Autoshotgun.png' },
   17: { label: 'KR82U', category: 'Assault Rifle', fireType: 'Auto', baseDamage: 30, rpm: 540, wikiUrl: 'https://dueprocess.fandom.com/wiki/KR82U', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/f/fd/KR82U.png' },
+  // Same baseDamage/rpm as Gruber-5 (4), kept in sync with stats.js's
+  // weaponMeta — see that file's comment for how this was identified from
+  // log evidence (a suppressor doesn't change damage, only sound/recoil).
+  19: { label: 'Gruber-SD', category: 'Submachine Gun', fireType: 'Auto', baseDamage: 22, rpm: 720, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
   50: { label: 'Grenade', category: 'Explosive', fireType: 'Throwable', baseDamage: null, rpm: null, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
   51: { label: 'Molotov Cocktail', category: 'Explosive', fireType: 'Throwable', baseDamage: null, rpm: null, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
 };
