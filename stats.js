@@ -201,14 +201,13 @@ export function computeMatchStats(match, config = {}) {
       }
     }
 
-    // Damage totals, ADR buckets, weapon breakdown. Both self-damage (a
-    // player's own Molotov/grenade catching them) and team damage (hitting
-    // a different teammate) are excluded via attackerSide === victimSide —
-    // same side comparison the team-kill fix above uses, since victimSide
-    // is present directly on the raw Damage log line too. Confirmed
-    // against three real players in one match: bluetyde (+9 team damage,
-    // matched dp-stats.com exactly once removed), Afraid (+42), Loc and
-    // Load (+59 across many small self-inflicted-looking grenade ticks on
+    // Damage totals, ADR buckets, weapon breakdown. Self-damage (a player
+    // catching themselves in their own Molotov/grenade) is skipped completely.
+    // Team damage (hitting a different teammate on the same side) is branch-
+    // excluded from enemy damage totals/ADR and credited to `teamDamage`.
+    // Confirmed against three real players in one match: bluetyde (+9 team
+    // damage), Afraid (+42), and Loc and Load (+59 across team grenade
+    // ticks) — each gap matched dp-stats.com's totals exactly once removed.
     for (const d of round.damage) {
       if (d.attackerId === d.victimId) continue;
       if (d.attackerSide === d.victimSide) {

@@ -94,6 +94,11 @@ class MatchArchive {
       for (const side of [0, 1]) {
         for (const r of m.teams[side] || []) {
           if (r.teamDamage === undefined) r.teamDamage = 0;
+          if (Array.isArray(r.weaponBreakdown)) {
+            r.weaponBreakdown.sort((a, b) => b.damage - a.damage || b.kills - a.kills);
+            const fired = r.weaponBreakdown.filter((w) => w.hits > 0);
+            r.bestWeapon = fired[0] ?? null;
+          }
           if (r.hsPercent === undefined) {
             const breakdown = r.weaponBreakdown ?? [];
             const totalHits = breakdown.reduce((sum, w) => sum + (w.hits ?? 0), 0);

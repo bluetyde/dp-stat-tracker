@@ -182,18 +182,18 @@ a:hover {
 .team-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
+  gap: 12px;
+  padding: 10px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 .team-head .badge {
-  min-width: 26px;
+  min-width: 28px;
   text-align: center;
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1;
-  padding: 3px 5px;
+  padding: 4px 6px;
   color: #0d1013;
 }
 .team-head.team-0 { background: rgba(127, 182, 232, 0.1); }
@@ -202,7 +202,7 @@ a:hover {
 .team-head.team-1 .badge { background: var(--loss); }
 .team-head .team-label {
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 17px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -211,14 +211,14 @@ a:hover {
 
 .player-row, .col-head-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, .55fr) minmax(0, .5fr) minmax(0, .75fr) minmax(0, .5fr) minmax(0, .5fr) minmax(0, .55fr) minmax(0, .6fr) minmax(0, .85fr);
-  gap: 4px;
-  padding: 6px 10px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, .6fr) minmax(0, .55fr) minmax(0, .8fr) minmax(0, .55fr) minmax(0, .55fr) minmax(0, .6fr) minmax(0, .65fr) minmax(0, .95fr);
+  gap: 6px;
+  padding: 8px 12px;
   align-items: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 .col-head-row {
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #66757f;
