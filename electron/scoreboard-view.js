@@ -24,31 +24,25 @@ function renderScoreboardTeamColumn(teamIndex, label, roundWins, rows, localAcco
 
   const colHead = document.createElement('div');
   colHead.className = 'col-head-row';
-  colHead.innerHTML = `<span>Name</span><span class="num">DMG</span><span class="num">ADR</span><span class="ctr">K-D-A</span><span class="num">KAST</span><span class="ctr">OP DUEL</span><span class="wpn">Best Wpn</span>`;
+  colHead.innerHTML = `<span>Name</span><span class="num">DMG</span><span class="num">ADR</span><span class="ctr">K-D-A</span><span class="num">KAST</span><span class="num">HS %</span><span class="num">FF DMG</span><span class="ctr">OP DUEL</span><span class="wpn">Best Wpn</span>`;
   col.appendChild(colHead);
 
   for (const row of [...rows].sort((a, b) => b.damage - a.damage)) {
     const el = document.createElement('div');
     el.className = 'player-row' + (row.accountId === localAccountId ? ' is-you' : '');
-    // Inert data attribute, not a behavior — the overlay never reads it.
-    // Lets a Hub-context caller (see hub-renderer.js's
-    // attachPlayerClickHandlers) wire up player-name clicks after the fact
-    // without this shared file needing to know whether it's rendering into
-    // the live overlay or a Hub view.
     el.dataset.accountId = row.accountId;
     const bestWeapon = row.bestWeapon ? row.bestWeapon.label : '—';
-    // .name-text is a nested span, not just the name string directly inside
-    // .name, so attachPlayerClickHandlers's appended played-with-tag (a
-    // sibling of .name-text, not a child) gets its own truncation unit —
-    // see theme.css's .player-row .name comment for why sharing one
-    // ellipsis box between the name and the tag was truncating names that
-    // had plenty of room on their own.
+    const hsText = row.hsPercent !== null && row.hsPercent !== undefined ? `${row.hsPercent}%` : '—';
+    const ffVal = row.teamDamage ?? 0;
+    const ffClass = ffVal > 0 ? 'ff-alert' : 'dim';
     el.innerHTML = `
       <span class="name"><span class="name-text">${scoreboardEscapeHtml(row.name)}</span></span>
       <span class="num">${row.damage}</span>
       <span class="num">${row.adr.attack}-${row.adr.defense}</span>
       <span class="ctr">${row.kills}-${row.deaths}-${row.assists}</span>
       <span class="num dim">${row.kast.percent}%</span>
+      <span class="num dim">${hsText}</span>
+      <span class="num ${ffClass}">${ffVal}</span>
       <span class="ctr dim">${row.openingDuels.won}/${row.openingDuels.involved}</span>
       <span class="wpn">${scoreboardEscapeHtml(bestWeapon)}</span>
     `;

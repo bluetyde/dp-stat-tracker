@@ -211,9 +211,9 @@ a:hover {
 
 .player-row, .col-head-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, .65fr) minmax(0, .55fr) minmax(0, .9fr) minmax(0, .6fr) minmax(0, .7fr) minmax(0, 1fr);
-  gap: 5px;
-  padding: 6px 14px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .55fr) minmax(0, .5fr) minmax(0, .75fr) minmax(0, .5fr) minmax(0, .5fr) minmax(0, .55fr) minmax(0, .6fr) minmax(0, .85fr);
+  gap: 4px;
+  padding: 6px 10px;
   align-items: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -276,6 +276,7 @@ a:hover {
 .num { text-align: right; font-family: var(--font-display); font-size: 15px; color: var(--text); }
 .ctr { text-align: center; font-family: var(--font-display); font-size: 15px; color: var(--text); }
 .dim { color: #9aa7b4; }
+.ff-alert { color: #e28a42; font-weight: 600; text-align: right; font-family: var(--font-display); font-size: 15px; }
 .wpn { text-align: right; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa7b4; }
 
 table.rows {

@@ -79,9 +79,29 @@ class MatchArchive {
     try {
       const raw = fs.readFileSync(this.filePath, 'utf8');
       const parsed = JSON.parse(raw);
-      return { ...emptyData(), ...parsed };
+      const data = { ...emptyData(), ...parsed };
+      this._ensureRowFields(data);
+      return data;
     } catch {
       return emptyData();
+    }
+  }
+
+  _ensureRowFields(data) {
+    if (!data.matches || !Array.isArray(data.matches)) return;
+    for (const m of data.matches) {
+      if (!m.teams) continue;
+      for (const side of [0, 1]) {
+        for (const r of m.teams[side] || []) {
+          if (r.teamDamage === undefined) r.teamDamage = 0;
+          if (r.hsPercent === undefined) {
+            const breakdown = r.weaponBreakdown ?? [];
+            const totalHits = breakdown.reduce((sum, w) => sum + (w.hits ?? 0), 0);
+            const totalHs = breakdown.reduce((sum, w) => sum + (w.headshots ?? 0), 0);
+            r.hsPercent = totalHits > 0 ? Math.round((totalHs / totalHits) * 100) : null;
+          }
+        }
+      }
     }
   }
 
@@ -119,6 +139,7 @@ class MatchArchive {
   isLegacyMatch(matchId) {
     const m = this.getMatch(matchId);
     if (!m) return false;
+    if (!m._schemaVersion || m._schemaVersion < 2) return true;
     const rounds = m.mapRounds || m.roundMaps;
     if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
     return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
@@ -148,13 +169,13 @@ class MatchArchive {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);
     if (existingIndex !== -1) {
       if (this.isLegacyMatch(entry.matchId)) {
-        this.data.matches[existingIndex] = entry;
+        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 2 };
         this._save();
       }
       return;
     }
 
-    this.data.matches.push(entry);
+    this.data.matches.push({ ...entry, _schemaVersion: 2 });
     if (this.data.matches.length > MAX_MATCHES) {
       this.data.matches.splice(0, this.data.matches.length - MAX_MATCHES);
     }

@@ -161,6 +161,7 @@ function emptyAgg(accountId, known) {
     weaponDeaths: new Map(), // damageSource -> times this player died to that weapon
     weaponHeadshots: new Map(), // damageSource -> headshot-magnitude hits landed (see isHeadshotDamage)
     weaponRoundsUsed: new Map(), // damageSource -> Set of round numbers this weapon dealt damage or got a kill in
+    teamDamage: 0,
   };
 }
 
@@ -208,12 +209,13 @@ export function computeMatchStats(match, config = {}) {
     // against three real players in one match: bluetyde (+9 team damage,
     // matched dp-stats.com exactly once removed), Afraid (+42), Loc and
     // Load (+59 across many small self-inflicted-looking grenade ticks on
-    // a teammate) — each gap matched a third-party reference (dp-stats.com)
-    // to within rounding once excluded. There's no "damage taken" stat
-    // tracked anywhere in this file, so skipping the event here is enough —
-    // no other aggregate needs the value re-attributed.
     for (const d of round.damage) {
-      if (d.attackerSide === d.victimSide) continue;
+      if (d.attackerId === d.victimId) continue;
+      if (d.attackerSide === d.victimSide) {
+        const accountId = entityToAccount.get(d.attackerId);
+        if (accountId) ensure(accountId).teamDamage += d.damageDealt;
+        continue;
+      }
       const accountId = entityToAccount.get(d.attackerId);
       if (!accountId) continue;
       const agg = ensure(accountId);
@@ -386,7 +388,7 @@ function finalizeRow(agg) {
         roundsUsed: agg.weaponRoundsUsed.get(code)?.size ?? 0,
       };
     })
-    .sort((a, b) => b.kills - a.kills || b.damage - a.damage);
+    .sort((a, b) => b.damage - a.damage || b.kills - a.kills);
   // bestWeapon stays scoped to weapons this player actually fired, so a
   // weapon they only ever died to (0 hits, 0 kills) can never end up as
   // their "best" weapon just by being in the union list above.
@@ -417,6 +419,12 @@ function finalizeRow(agg) {
       won: agg.openingWon,
       involved: agg.openingInvolved,
     },
+    teamDamage: Math.round(agg.teamDamage),
+    hsPercent: (() => {
+      const totalHits = [...agg.weaponHits.values()].reduce((a, b) => a + b, 0);
+      const totalHs = [...agg.weaponHeadshots.values()].reduce((a, b) => a + b, 0);
+      return totalHits > 0 ? Math.round((totalHs / totalHits) * 100) : null;
+    })(),
     bestWeapon: attackedBreakdown[0] ?? null,
     weaponBreakdown,
   };
