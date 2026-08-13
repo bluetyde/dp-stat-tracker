@@ -301,17 +301,31 @@ export function computeMatchStats(match, config = {}) {
   };
 }
 
+// Same "Super C" formula as match-archive.js's computeDplRating (kept in
+// sync there — see its doc comment) — this one just feeds it a single
+// match's row instead of a summed career/Played-With aggregate. There's no
+// win-rate concept for a single row, so winRate stays at computeDplRating's
+// own neutral default (1.0x multiplier), same as any other caller that
+// doesn't have that context.
 export function calculateDplRating(row) {
   const rounds = row.kast?.roundsCounted || row.roundsCounted || 1;
-  const kpr = row.kills / rounds;
+  const kills = row.kills ?? 0;
+  const deaths = row.deaths ?? 0;
+  const assists = row.assists ?? 0;
+  const kpr = kills / rounds;
   const totalDmg = (row.adr?.attackDamageRaw ?? 0) + (row.adr?.defenseDamageRaw ?? 0);
   const adrRounds = (row.adr?.attackRounds ?? 0) + (row.adr?.defenseRounds ?? 0);
   const adr = adrRounds > 0 ? totalDmg / adrRounds : (row.damage ?? 0) / rounds;
-  const srv = Math.max(0, (rounds - (row.deaths ?? 0)) / rounds);
-  const kastPct = (row.kast?.percent ?? 0) / 100;
+  const srv = Math.max(0, (rounds - deaths) / rounds);
+  const kastPct = row.kast?.percent ?? 0; // already 0-100, matching computeDplRating's kastPct scale
 
-  const rating = 0.35 * kpr + 0.30 * (adr / 100) + 0.20 * srv + 0.15 * (kastPct / 0.70);
-  return Math.round(rating * 100) / 100;
+  const kda = (kills + assists) / Math.max(1, deaths);
+  const kdaFactor = kda / 1.5; // 1.5 KDA = 1.0 baseline
+  const kastFactor = kastPct / 70; // 70% KAST = 1.0 baseline
+  const baseCombat = 0.25 * kdaFactor + 0.25 * kastFactor + 0.20 * kpr + 0.20 * (adr / 100) + 0.10 * srv;
+  const winImpact = 0.65 + 0.70 * (50 / 100); // neutral (no per-row win-rate input) — see comment above
+
+  return Math.round(baseCombat * winImpact * 100) / 100;
 }
 
 function finalizeRow(agg) {

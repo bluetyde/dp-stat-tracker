@@ -261,6 +261,21 @@ let mapSortDir = 'desc';
 // separately as match-archive.js's mapTags, same keyed-by-mapName shape.
 const MAP_TAGS = ['Sniper', 'Defense-Heavy', 'Offense-Heavy', 'Good W-Charge', 'Nade Needed', 'Door Needed'];
 
+// saveMapTags does a synchronous full-archive rewrite (see its doc comment
+// in match-archive.js) — debounced per map so clicking several pills in a
+// row (a normal way to tag a map right after a match) collapses into one
+// write instead of one blocking rewrite per click. Keyed by mapName since
+// different rows can be tagged independently without their debounces
+// interfering with each other.
+const mapTagsSaveTimers = new Map();
+function debouncedSaveMapTags(mapName, tags) {
+  clearTimeout(mapTagsSaveTimers.get(mapName));
+  mapTagsSaveTimers.set(mapName, setTimeout(() => {
+    mapTagsSaveTimers.delete(mapName);
+    window.hubAPI?.saveMapTags?.(mapName, tags);
+  }, 400));
+}
+
 function renderMapsTable() {
   const mapData = latestHubData?.mapStats ?? { mapSummary: [], tilesetSummary: [], everyMap: [] };
   const mapSummary = mapData.mapSummary ?? [];
@@ -346,7 +361,8 @@ function renderMapsTable() {
 
     // Tag pills auto-save the same way the notes input does — no separate
     // "confirm" step, just persist on interaction (a click here, change/blur
-    // for the text input above). Always sends the full currently-active tag
+    // for the text input above), debounced per map (see
+    // debouncedSaveMapTags). Always sends the full currently-active tag
     // set for this map, not a single add/remove delta — see
     // match-archive.js's saveMapTags doc comment.
     const tagPillsEl = tr.querySelector('.map-tag-pills');
@@ -354,9 +370,7 @@ function renderMapsTable() {
       pill.addEventListener('click', () => {
         pill.classList.toggle('active');
         const selected = [...tagPillsEl.querySelectorAll('.map-tag-pill.active')].map((p) => p.dataset.tag);
-        if (window.hubAPI?.saveMapTags) {
-          window.hubAPI.saveMapTags(m.mapName, selected);
-        }
+        debouncedSaveMapTags(m.mapName, selected);
       });
     });
 

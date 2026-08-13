@@ -193,62 +193,53 @@
     gap: 6px;
     flex-wrap: wrap;
   }
-  .cat-pill {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border-soft);
-    color: var(--text-muted);
-    font-family: var(--font-display);
-    font-size: 12px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    padding: 5px 11px;
-    cursor: pointer;
-    border-radius: 2px;
-    transition: all 0.15s ease;
-  }
-  .cat-pill:hover {
-    color: var(--text-bright);
-    border-color: var(--accent-dim);
-    background: rgba(127, 182, 232, 0.06);
-  }
-  .cat-pill.active {
-    background: rgba(127, 182, 232, 0.14);
-    border-color: var(--accent);
-    color: var(--text-bright);
-  }
-  /* Per-map quick-tag pills (Maps tab) — same visual language as .cat-pill
-     above, scaled down to fit several per table cell alongside the notes
-     input. Unlike .cat-pill's single-select filter groups elsewhere in the
-     Hub, any number of these can be .active at once per map (see
+  /* .cat-pill (filter pills used throughout the Hub) and .map-tag-pill (the
+     Maps tab's per-map quick-tags) share this base — only size/spacing
+     differ between them (see each class's own rule below). Kept as one
+     shared rule instead of two full copies so a theme change here (accent
+     color, hover treatment, border-radius) applies to both instead of
+     silently drifting apart. .map-tag-pill differs behaviorally too: unlike
+     .cat-pill's single-select filter groups elsewhere in the Hub, any
+     number of tag pills can be .active at once per map (see
      hub-renderer.js's tag click handler). */
-  .map-tag-pills {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-    margin-top: 6px;
-  }
+  .cat-pill,
   .map-tag-pill {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-soft);
     color: var(--text-muted);
     font-family: var(--font-display);
-    font-size: 10px;
-    letter-spacing: 0.06em;
     text-transform: uppercase;
-    padding: 3px 8px;
     cursor: pointer;
     border-radius: 2px;
     transition: all 0.15s ease;
   }
+  .cat-pill {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    padding: 5px 11px;
+  }
+  .map-tag-pill {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+  }
+  .cat-pill:hover,
   .map-tag-pill:hover {
     color: var(--text-bright);
     border-color: var(--accent-dim);
     background: rgba(127, 182, 232, 0.06);
   }
+  .cat-pill.active,
   .map-tag-pill.active {
     background: rgba(127, 182, 232, 0.14);
     border-color: var(--accent);
     color: var(--text-bright);
+  }
+  .map-tag-pills {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 6px;
   }
   .weapon-search-box input {
     background: #090c0f;

@@ -102,6 +102,28 @@ function createHubWindow() {
   });
 }
 
+// Creates the Hub window if it doesn't exist yet, and calls `onReady` once
+// it's actually able to receive IPC — immediately if it's already loaded,
+// or after `did-finish-load` if it's missing or still mid-load. Centralizing
+// the three-way "missing / loading / ready" branch here means a second
+// caller arriving while the window is still loading (e.g. two overlay
+// clicks in quick succession) also waits for `did-finish-load` instead of
+// sending straight into a renderer that hasn't registered its listeners
+// yet — sending to a not-yet-loaded webContents doesn't queue, it's simply
+// never received.
+function ensureHubWindowReady(onReady) {
+  if (!hubWindow || hubWindow.isDestroyed()) {
+    createHubWindow();
+    hubWindow.webContents.once('did-finish-load', onReady);
+    return;
+  }
+  if (hubWindow.webContents.isLoading()) {
+    hubWindow.webContents.once('did-finish-load', onReady);
+    return;
+  }
+  onReady();
+}
+
 // ---------------------------------------------------------------------
 // Game detection (poll `tasklist`, show/hide the overlay)
 // ---------------------------------------------------------------------
@@ -331,7 +353,7 @@ function currentPlayerName() {
   return rankedArchive.getPlayerName(accountId) ?? otherArchive.getPlayerName(accountId);
 }
 
-function computeWinPrediction(teams, playedWithStats) {
+function computeWinPrediction(teams, playedWithStats, localLifetimeStats) {
   if (!teams || !teams[0] || !teams[1]) return null;
 
   // playedWithStats (rankedArchive.getPlayedWithStats()) deliberately
@@ -346,15 +368,19 @@ function computeWinPrediction(teams, playedWithStats) {
   // early in a match. Substitute the local player's own lifetime dplRating
   // (same formula, computeDplRating in match-archive.js, fed their summed
   // career stats — see getLifetimeStats()) so the comparison is apples-to-
-  // apples with everyone else's rating.
+  // apples with everyone else's rating. Set directly into playedWithMap
+  // (rather than special-cased per-row in the reduce below) so the map
+  // itself is the single source of "every player's rating, local included" —
+  // any future consumer of playedWithMap gets the fix for free instead of
+  // needing its own local-player special case.
   const playedWithMap = new Map((playedWithStats ?? []).map((p) => [p.accountId, p.dplRating]));
   const myAccountId = localAccountId || rankedArchive.getLocalAccountId();
-  const localRating = rankedArchive.getLifetimeStats().dplRating;
+  if (myAccountId && localLifetimeStats) playedWithMap.set(myAccountId, localLifetimeStats.dplRating);
 
   const getTeamAvgRating = (teamRows) => {
     if (!teamRows || teamRows.length === 0) return 1.0;
     const sum = teamRows.reduce((acc, r) => {
-      const rating = r.accountId === myAccountId ? localRating : playedWithMap.get(r.accountId) ?? r.dplRating ?? 1.0;
+      const rating = playedWithMap.get(r.accountId) ?? r.dplRating ?? 1.0;
       return acc + rating;
     }, 0);
     return sum / teamRows.length;
@@ -377,11 +403,11 @@ function computeWinPrediction(teams, playedWithStats) {
   };
 }
 
-function getLiveMatchState(playedWithStats) {
+function getLiveMatchState(playedWithStats, localLifetimeStats) {
   if (!parser || !parser.current) return null;
   const match = parser.current;
   const stats = computeMatchStats(match);
-  const prediction = computeWinPrediction(stats.teams, playedWithStats);
+  const prediction = computeWinPrediction(stats.teams, playedWithStats, localLifetimeStats);
   return {
     status: match.status,
     liveMatchId: match.liveMatchId,
@@ -401,6 +427,11 @@ function sendHubUpdate() {
   // data; calling getPlayedWithStats() twice just redid the same
   // all-matches aggregation for no reason.
   const playedWithStats = rankedArchive.getPlayedWithStats();
+  // Also computed once and reused below — getLifetimeStats() sums the whole
+  // archive (plus a second full pass in _streaks()) on every call, and
+  // computeWinPrediction needs the same local-player dplRating this
+  // function already needs for the `lifetime` key.
+  const lifetimeStats = rankedArchive.getLifetimeStats();
   hubWindow.webContents.send('hub:update', {
     playerName: currentPlayerName(),
     // Raw accountId (not just the display name above) — the Career Overview
@@ -412,7 +443,7 @@ function sendHubUpdate() {
     localAccountId: localAccountId || rankedArchive.getLocalAccountId(),
     // Career totals are derived ONLY from rankedArchive — see match-archive.js
     // (summed fresh on every read) and rescan.js (routing by score shape).
-    lifetime: rankedArchive.getLifetimeStats(),
+    lifetime: lifetimeStats,
     recentMatches: rankedArchive.getRecentMatches(8),
     otherMatches: otherArchive.getRecentMatches(8),
     topWeapons: rankedArchive.getTopWeapons(4),
@@ -421,7 +452,7 @@ function sendHubUpdate() {
     playedWith: playedWithStats,
     playedWithStats: playedWithStats,
     mapStats: rankedArchive.getMapStats(),
-    liveMatch: getLiveMatchState(playedWithStats),
+    liveMatch: getLiveMatchState(playedWithStats, lifetimeStats),
   });
 }
 
@@ -503,25 +534,36 @@ ipcMain.handle('hub:get-player-detail', (_event, accountId) => {
 // (it has no such UI), so this ensures the Hub window exists, brings it
 // forward, and pushes the accountId over for hub-renderer.js's
 // onShowPlayerDetail listener to open via its own existing openPlayerDetail().
+// sendHubUpdate() runs first (same tick, same webContents, so it's
+// guaranteed to be processed by the renderer before hub:show-player-detail
+// right behind it) so latestHubData.localAccountId is populated before
+// openPlayerDetail's isSelf check runs — otherwise a freshly-created Hub
+// window racing its own independent requestRefresh() call could still have
+// latestHubData null/stale, misrouting a click on your own row into the
+// "unknown player" branch instead of the self view.
 ipcMain.on('overlay:open-player-detail', (_event, accountId) => {
-  if (!hubWindow || hubWindow.isDestroyed()) {
-    createHubWindow();
-    hubWindow.webContents.once('did-finish-load', () => {
-      hubWindow.webContents.send('hub:show-player-detail', accountId);
-    });
-  } else {
+  ensureHubWindowReady(() => {
+    sendHubUpdate();
     hubWindow.webContents.send('hub:show-player-detail', accountId);
-  }
+  });
   hubWindow.show();
   hubWindow.focus();
 });
 
+// Both push a fresh hub:update after saving, same as every other
+// archive-mutating handler (record/delete) already does — without it,
+// hub-renderer.js's latestHubData.mapStats keeps the pre-edit snapshot, so
+// switching tabs and back (or a filter/sort click, which all re-render
+// Maps from that cache) would show the edit as having reverted even though
+// it saved correctly.
 ipcMain.handle('hub:save-map-note', (_event, mapName, note) => {
   rankedArchive.saveMapNote(mapName, note);
+  sendHubUpdate();
 });
 
 ipcMain.handle('hub:save-map-tags', (_event, mapName, tags) => {
   rankedArchive.saveMapTags(mapName, tags);
+  sendHubUpdate();
 });
 
 ipcMain.handle('hub:export-csv', (_event, which) => {
@@ -629,7 +671,6 @@ async function main() {
   localAccountId = rankedArchive.getLocalAccountId() || otherArchive.getLocalAccountId();
 
   createOverlayWindow();
-  createHubWindow();
 
   // Renderers may finish loading after the first update already fired (or
   // before any log activity happens at all) — re-push current state once
@@ -637,7 +678,7 @@ async function main() {
   // idempotent (onParserUpdate recomputes from current state;
   // recordCompletedMatch is dedupe-guarded), so re-sending is harmless.
   overlayWindow.webContents.once('did-finish-load', () => onParserUpdate());
-  hubWindow.webContents.once('did-finish-load', () => sendHubUpdate());
+  ensureHubWindowReady(() => sendHubUpdate());
 
   const registered = globalShortcut.register(config.OVERLAY_HOTKEY, toggleOverlayManually);
   if (registered) {
