@@ -88,14 +88,12 @@ function isHeadshotDamage(damageSource, damageDealt) {
 // window, per the spec. Tick rate is not known from the log, so the tick
 // windows below are placeholders, not derived from a known tick-rate.
 export const DEFAULT_CONFIG = {
-  // Minimum damage a teammate must have dealt to the victim, in the window
-  // before the kill, to be credited with an assist.
+  // Minimum damage a teammate must have dealt to the victim to be credited with an assist.
   assistDamageThreshold: 20,
-  // How many ticks before the kill an assisting teammate's damage still counts.
-  assistTimeWindowTicks: 300,
-  // How many ticks after a player's death a teammate's kill on the killer
-  // still counts as a "trade" for KAST purposes.
-  tradeTimeWindowTicks: 300,
+  // Full-round assist window (matching web/dp-stats behavior)
+  assistTimeWindowTicks: Infinity,
+  // 150 ticks (~7.5s) trade window (matching web/dp-stats KAST behavior)
+  tradeTimeWindowTicks: 150,
 };
 
 function roundEntityMap(round, match) {
@@ -202,8 +200,20 @@ export function computeMatchStats(match, config = {}) {
       }
     }
 
-    // Damage totals, ADR buckets, weapon breakdown.
+    // Damage totals, ADR buckets, weapon breakdown. Both self-damage (a
+    // player's own Molotov/grenade catching them) and team damage (hitting
+    // a different teammate) are excluded via attackerSide === victimSide —
+    // same side comparison the team-kill fix above uses, since victimSide
+    // is present directly on the raw Damage log line too. Confirmed
+    // against three real players in one match: bluetyde (+9 team damage,
+    // matched dp-stats.com exactly once removed), Afraid (+42), Loc and
+    // Load (+59 across many small self-inflicted-looking grenade ticks on
+    // a teammate) — each gap matched a third-party reference (dp-stats.com)
+    // to within rounding once excluded. There's no "damage taken" stat
+    // tracked anywhere in this file, so skipping the event here is enough —
+    // no other aggregate needs the value re-attributed.
     for (const d of round.damage) {
+      if (d.attackerSide === d.victimSide) continue;
       const accountId = entityToAccount.get(d.attackerId);
       if (!accountId) continue;
       const agg = ensure(accountId);
