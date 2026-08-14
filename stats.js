@@ -4,10 +4,9 @@
 // DueProcessLogParser#getMatches() and returns per-player scoreboard rows.
 //
 // Formulations for KAST, assists, trade windows, team damage exclusions,
-// and best-weapon selection have been cross-verified 100% exact against
-// third-party web (dp-stats.com) reference match outputs.
-// Each row also carries the raw component numbers (not just the final
-// percentage/average) specifically so they can be inspected and verified.
+// and percent-of-max-health best-weapon selection are adapted from and inspired by
+// Austen Keeling's open-source Due-Process-Stat-Parser (dp-stats.com).
+// Each row also carries raw component numbers so they can be inspected and verified.
 
 // --- Weapon name lookup -----------------------------------------------
 // `damageSource` in Stats::Kill / Stats::Damage is a numeric code with no
@@ -255,21 +254,20 @@ export function computeMatchStats(match, config = {}) {
       }
     }
 
-    // Assists: teammate damage to the eventual victim, above threshold,
-    // within the time window before the kill tick.
+    // Assists: teammate damage to the victim >= 30% of victim's max HP
+    // (45 HP vs Attacker, 30 HP vs Defender), per Austenke dp-stats.
     const assistedThisRound = new Set();
     for (const k of round.kills) {
-      const candidateDamage = new Map(); // attackerId -> summed damage in window
+      if (k.attackerSide === k.victimSide) continue;
+      const victimMaxHP = k.victimSide === 0 ? 150 : 100;
+      const minAssistDmg = victimMaxHP * 0.3;
+      const candidateDamage = new Map();
       for (const d of round.damage) {
         if (d.victimId !== k.victimId) continue;
-        if (d.attackerId === k.attackerId) continue;
-        if (d.attackerSide !== k.attackerSide) continue; // must be the killer's teammate
-        const delta = k.tick - d.tick;
-        if (delta < 0 || delta > cfg.assistTimeWindowTicks) continue;
+        if (d.attackerId === k.attackerId || d.attackerId === k.victimId) continue;
+        if (d.attackerSide === k.victimSide) continue; // must be enemy damage
         candidateDamage.set(d.attackerId, (candidateDamage.get(d.attackerId) ?? 0) + d.damageDealt);
       }
-      const victimMaxHP = k.victimSide === 0 ? 150 : 100;
-      const minAssistDmg = cfg.assistDamageThreshold ?? (victimMaxHP * 0.3);
       for (const [entityId, dmg] of candidateDamage) {
         if (dmg < minAssistDmg) continue;
         const accountId = entityToAccount.get(entityId);
@@ -291,16 +289,20 @@ export function computeMatchStats(match, config = {}) {
       const killerAccount = entityToAccount.get(k.attackerId);
       if (killerAccount && k.attackerSide !== k.victimSide) kastAccountIds.add(killerAccount);
     }
-    for (const k of round.kills) {
-      const victimAccount = entityToAccount.get(k.victimId);
-      if (!victimAccount) continue;
-      const avenged = round.kills.some((other) => {
-        if (other.victimId !== k.attackerId) return false;
-        const delta = other.tick - k.tick;
-        if (delta < 0 || delta > cfg.tradeTimeWindowTicks) return false;
-        return other.attackerSide === k.victimSide; // avenger is on the victim's team
-      });
-      if (avenged) kastAccountIds.add(victimAccount);
+    // Trade KAST: per Austenke dp-stats, a victim is traded if an enemy kill
+    // occurs within 150 ticks after the victim's death that kills the victim's killer.
+    const validKills = round.kills.filter((k) => k.attackerSide !== k.victimSide);
+    for (let i = 0; i < validKills.length; i++) {
+      const kill = validKills[i];
+      for (let x = i + 1; x < validKills.length; x++) {
+        const possibleTrade = validKills[x];
+        const delta = possibleTrade.tick - kill.tick;
+        if (delta > cfg.tradeTimeWindowTicks) break;
+        if (possibleTrade.victimId === kill.attackerId && possibleTrade.attackerSide === kill.victimSide) {
+          const victimAccount = entityToAccount.get(kill.victimId);
+          if (victimAccount) kastAccountIds.add(victimAccount);
+        }
+      }
     }
     for (const accountId of kastAccountIds) ensure(accountId).kastRounds += 1;
 

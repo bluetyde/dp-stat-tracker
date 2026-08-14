@@ -1,6 +1,6 @@
 {
   "name": "due-process-scoreboard",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Due Process Player.log scoreboard — web viewer plus an Electron overlay/hub for personal use",
   "main": "electron/main.js",

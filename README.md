@@ -90,3 +90,7 @@ two, or moving to a newer build, doesn't lose or fork your history.
   detection, IPC), the overlay window, and the Hub window.
 - `server.js` / `app.js` / `index.html` / `style.css` — the standalone web
   viewer (`npm run web`).
+
+## Acknowledgments & Credits
+
+Stat calculation logic, trade-window timing, KAST criteria, role-relative assist thresholds, and percent-of-max-health weapon scoring formulas are adapted from and inspired by Austen Keeling's open-source [Due-Process-Stat-Parser](https://github.com/austenke/Due-Process-Stat-Parser) library and the [dp-stats.com](https://dp-stats.com) community platform. Special thanks to Austen for establishing the foundational log parsing standards for the Due Process community.
