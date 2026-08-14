@@ -144,7 +144,7 @@ class MatchArchive {
   isLegacyMatch(matchId) {
     const m = this.getMatch(matchId);
     if (!m) return false;
-    if (!m._schemaVersion || m._schemaVersion < 4) return true;
+    if (!m._schemaVersion || m._schemaVersion < 5) return true;
     const rounds = m.mapRounds || m.roundMaps;
     if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
     return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
@@ -174,13 +174,13 @@ class MatchArchive {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);
     if (existingIndex !== -1) {
       if (this.isLegacyMatch(entry.matchId)) {
-        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 4 };
+        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 5 };
         this._save();
       }
       return;
     }
 
-    this.data.matches.push({ ...entry, _schemaVersion: 4 });
+    this.data.matches.push({ ...entry, _schemaVersion: 5 });
     if (this.data.matches.length > MAX_MATCHES) {
       this.data.matches.splice(0, this.data.matches.length - MAX_MATCHES);
     }
