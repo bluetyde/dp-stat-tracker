@@ -50,4 +50,15 @@ contextBridge.exposeInMainWorld('hubAPI', {
   // main.js's numeric validation and scheme/host check both run before
   // anything reaches shell.openExternal. See main.js's hub:open-steam-profile.
   openSteamProfile: (accountId) => ipcRenderer.invoke('hub:open-steam-profile', accountId),
+  // Map layout screenshot capture — see main.js's captureMapScreenshot().
+  onMapScreenshotPreview: (callback) => {
+    ipcRenderer.on('hub:map-screenshot-preview', (_event, payload) => callback(payload));
+  },
+  onMapScreenshotNotice: (callback) => {
+    ipcRenderer.on('hub:map-screenshot-notice', (_event, payload) => callback(payload));
+  },
+  confirmMapScreenshot: () => ipcRenderer.send('hub:map-screenshot-confirm'),
+  retryMapScreenshot: () => ipcRenderer.send('hub:map-screenshot-retry'),
+  cancelMapScreenshot: () => ipcRenderer.send('hub:map-screenshot-cancel'),
+  getMapLayoutPicture: (tileset, mapName) => ipcRenderer.invoke('hub:get-map-layout-picture', tileset, mapName),
 });

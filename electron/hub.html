@@ -211,6 +211,19 @@
     border-color: rgba(255, 255, 255, 0.25);
     background: rgba(255, 255, 255, 0.08);
   }
+  /* Save round — the attacking side had a survivor when a non-defuse round
+     ended, so it wasn't decided by a wipe or a defuse. 12-point star via
+     clip-path instead of the normal rounded square, layered with the
+     existing win/loss border-color/background/box-shadow rules above. */
+  .match-map-card--save {
+    clip-path: polygon(
+      50.00% 0.00%, 55.44% 29.72%, 75.00% 6.70%, 64.85% 35.15%, 93.30% 25.00%, 70.28% 44.56%,
+      100.00% 50.00%, 70.28% 55.44%, 93.30% 75.00%, 64.85% 64.85%, 75.00% 93.30%, 55.44% 70.28%,
+      50.00% 100.00%, 44.56% 70.28%, 25.00% 93.30%, 35.15% 64.85%, 6.70% 75.00%, 29.72% 55.44%,
+      0.00% 50.00%, 29.72% 44.56%, 6.70% 25.00%, 35.15% 35.15%, 25.00% 6.70%, 44.56% 29.72%
+    );
+    border-radius: 0;
+  }
   .match-map-card--win .match-map-card__icon {
     filter: sepia(100%) hue-rotate(170deg) saturate(350%) brightness(1.2) drop-shadow(0 1px 2px rgba(0,0,0,0.6));
   }
@@ -469,7 +482,7 @@
   }
 
   /* Player Detail Modal & Map History Modal */
-  #playerDetailBackdrop, #mapHistoryBackdrop {
+  #playerDetailBackdrop, #mapHistoryBackdrop, #mapScreenshotPreviewBackdrop {
     position: fixed;
     inset: 0;
     background: rgba(5, 7, 9, 0.75);
@@ -479,8 +492,37 @@
     padding: 40px;
     z-index: 20;
   }
-  #playerDetailBackdrop[hidden], #mapHistoryBackdrop[hidden] {
+  #playerDetailBackdrop[hidden], #mapHistoryBackdrop[hidden], #mapScreenshotPreviewBackdrop[hidden] {
     display: none !important;
+  }
+  #mapScreenshotPreviewImg {
+    width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+    background: #000;
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+  }
+  #mapScreenshotToast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(9, 12, 15, 0.97);
+    border: 1px solid var(--accent-dim);
+    color: var(--text-bright);
+    padding: 12px 18px;
+    border-radius: 4px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    z-index: 30;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    transition: opacity 0.3s ease;
+  }
+  #mapScreenshotToast[hidden] {
+    display: none !important;
+  }
+  #mapScreenshotToast.toast--error {
+    border-color: var(--loss);
   }
 
   .export-btn {
@@ -1079,10 +1121,13 @@
     <section id="mapHistoryCard" class="panel" style="width:720px;padding:24px;display:flex;flex-direction:column;gap:16px">
       <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
       <header style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="kicker">Map layout history</div>
-          <h2 id="mhMapTitle" style="margin:4px 0 0;font-family:var(--font-display);font-size:26px;text-transform:uppercase;color:var(--text-bright)">—</h2>
-          <div id="mhTilesetBadge" class="source-badge source-badge--ranked" style="margin-top:6px"></div>
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <img id="mhLayoutPicture" src="" alt="" hidden style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border-soft);background:rgba(0,0,0,0.3);flex-shrink:0" />
+          <div>
+            <div class="kicker">Map layout history</div>
+            <h2 id="mhMapTitle" style="margin:4px 0 0;font-family:var(--font-display);font-size:26px;text-transform:uppercase;color:var(--text-bright)">—</h2>
+            <div id="mhTilesetBadge" class="source-badge source-badge--ranked" style="margin-top:6px"></div>
+          </div>
         </div>
         <button id="mhCloseBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:6px 14px;cursor:pointer">CLOSE</button>
       </header>
@@ -1120,6 +1165,24 @@
       <div id="matchDetailTeams" class="scoreboard-teams"></div>
     </section>
   </div>
+
+  <div id="mapScreenshotPreviewBackdrop" hidden>
+    <section id="mapScreenshotPreviewCard" class="panel" style="width:600px;padding:24px;display:flex;flex-direction:column;gap:16px">
+      <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
+      <header>
+        <div class="kicker">Map layout capture</div>
+        <h2 id="mapScreenshotPreviewTitle" style="margin:4px 0 0;font-family:var(--font-display);font-size:22px;text-transform:uppercase;color:var(--text-bright)">—</h2>
+      </header>
+      <img id="mapScreenshotPreviewImg" src="" alt="Captured map layout" />
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="mapScreenshotCancelBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:8px 16px;cursor:pointer">CANCEL</button>
+        <button id="mapScreenshotRetryBtn" style="background:none;border:1px solid var(--border-soft);color:var(--text);font-family:var(--font-display);font-size:13px;padding:8px 16px;cursor:pointer">RETRY</button>
+        <button id="mapScreenshotSaveBtn" style="background:var(--accent);border:1px solid var(--accent);color:#0d1013;font-family:var(--font-display);font-weight:700;font-size:13px;padding:8px 16px;cursor:pointer">SAVE</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="mapScreenshotToast" hidden></div>
 
   <script src="scoreboard-view.js"></script>
   <script src="hub-renderer.js"></script>

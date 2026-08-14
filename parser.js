@@ -285,6 +285,14 @@ export class DueProcessLogParser {
       side,
       killScore: obj.KillScore,
       roundWins: obj.RoundWins,
+      // Last element of RoundOutcomes is this round's own result code for
+      // this side — confirmed against "Bomb DEFUSED" log lines: 1 = this
+      // side defused (attacker win), 5 = opponent defused (defender loss).
+      // Non-defuse rounds use 2 (attacker loss) / 4 (defender win) — see
+      // computeMatchStats-adjacent round-result classification in rescan.js
+      // for how attacker-survivor-count further splits those into a full
+      // elimination vs. a save (attacker ran out of time with a survivor).
+      outcomeCode: obj.RoundOutcomes[obj.RoundOutcomes.length - 1],
       members: obj.Members.map((m) => ({
         entityId: m.EntityId,
         name: m.Name,

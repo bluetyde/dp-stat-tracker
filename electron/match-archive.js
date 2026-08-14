@@ -144,7 +144,7 @@ class MatchArchive {
   isLegacyMatch(matchId) {
     const m = this.getMatch(matchId);
     if (!m) return false;
-    if (!m._schemaVersion || m._schemaVersion < 7) return true;
+    if (!m._schemaVersion || m._schemaVersion < 8) return true;
     const rounds = m.mapRounds || m.roundMaps;
     if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
     return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
@@ -174,13 +174,13 @@ class MatchArchive {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);
     if (existingIndex !== -1) {
       if (this.isLegacyMatch(entry.matchId)) {
-        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 7 };
+        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 8 };
         this._save();
       }
       return;
     }
 
-    this.data.matches.push({ ...entry, _schemaVersion: 7 });
+    this.data.matches.push({ ...entry, _schemaVersion: 8 });
     if (this.data.matches.length > MAX_MATCHES) {
       this.data.matches.splice(0, this.data.matches.length - MAX_MATCHES);
     }
@@ -639,12 +639,24 @@ class MatchArchive {
         if (won) existingM.wins += 1;
         else existingM.losses += 1;
 
+        // Map-agnostic: every round with a known role tells you about BOTH
+        // sides of the map, not just whichever one you happened to be on.
+        // A round you defended and lost is exactly as much evidence about
+        // how attacks fare on this map as a round you attacked and won —
+        // the opponent's attack succeeded either way. Counting only your
+        // own role's rounds understates attack/defense win rate on any map
+        // you rarely played one particular side of, even though you have
+        // plenty of indirect data about it from the other side's rounds.
         if (sideRole === 'ATTACK') {
           existingM.attackRounds += 1;
+          existingM.defenseRounds += 1;
           if (won) existingM.attackWins += 1;
+          else existingM.defenseWins += 1;
         } else if (sideRole === 'DEFENSE') {
           existingM.defenseRounds += 1;
+          existingM.attackRounds += 1;
           if (won) existingM.defenseWins += 1;
+          else existingM.attackWins += 1;
         }
 
         existingM.history.push(entry);

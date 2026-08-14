@@ -260,6 +260,7 @@ const mhMapTitle = document.getElementById('mhMapTitle');
 const mhTilesetBadge = document.getElementById('mhTilesetBadge');
 const mhBody = document.getElementById('mhBody');
 const mhCloseBtn = document.getElementById('mhCloseBtn');
+const mhLayoutPicture = document.getElementById('mhLayoutPicture');
 
 let selectedMapTileset = 'all';
 let mapSortKey = 'timesPlayed';
@@ -415,6 +416,15 @@ function renderMapsTable() {
 
 function openMapHistory(m) {
   mhMapTitle.textContent = m.mapName;
+
+  mhLayoutPicture.hidden = true;
+  mhLayoutPicture.src = '';
+  window.hubAPI?.getMapLayoutPicture?.(m.tileset, m.mapName).then((url) => {
+    if (!url) return;
+    mhLayoutPicture.src = url;
+    mhLayoutPicture.hidden = false;
+  });
+
   const atkWr = m.attackWinRate !== undefined ? m.attackWinRate : 0;
   const defWr = m.defenseWinRate !== undefined ? m.defenseWinRate : 0;
   mhTilesetBadge.innerHTML = `
@@ -456,6 +466,48 @@ mhCloseBtn?.addEventListener('click', () => {
 });
 mapHistoryBackdrop?.addEventListener('click', (e) => {
   if (e.target === mapHistoryBackdrop) mapHistoryBackdrop.hidden = true;
+});
+
+// Map layout screenshot: preview/confirm popup pushed from main.js's
+// captureMapScreenshot() (MAP_SCREENSHOT_HOTKEY), plus a small toast for the
+// non-actionable notices (already captured, no map detected, capture failed).
+const mapScreenshotPreviewBackdrop = document.getElementById('mapScreenshotPreviewBackdrop');
+const mapScreenshotPreviewTitle = document.getElementById('mapScreenshotPreviewTitle');
+const mapScreenshotPreviewImg = document.getElementById('mapScreenshotPreviewImg');
+const mapScreenshotSaveBtn = document.getElementById('mapScreenshotSaveBtn');
+const mapScreenshotRetryBtn = document.getElementById('mapScreenshotRetryBtn');
+const mapScreenshotCancelBtn = document.getElementById('mapScreenshotCancelBtn');
+const mapScreenshotToast = document.getElementById('mapScreenshotToast');
+
+window.hubAPI?.onMapScreenshotPreview?.(({ tileset, mapName, dataUrl }) => {
+  mapScreenshotPreviewTitle.textContent = `[${tileset}] ${mapName}`;
+  mapScreenshotPreviewImg.src = dataUrl;
+  mapScreenshotPreviewBackdrop.hidden = false;
+});
+
+let mapScreenshotToastTimer = null;
+window.hubAPI?.onMapScreenshotNotice?.(({ kind, message }) => {
+  mapScreenshotToast.textContent = message;
+  mapScreenshotToast.className = kind === 'error' ? 'toast--error' : '';
+  mapScreenshotToast.hidden = false;
+  clearTimeout(mapScreenshotToastTimer);
+  mapScreenshotToastTimer = setTimeout(() => {
+    mapScreenshotToast.hidden = true;
+  }, 4000);
+});
+
+mapScreenshotSaveBtn?.addEventListener('click', () => {
+  window.hubAPI?.confirmMapScreenshot?.();
+  mapScreenshotPreviewBackdrop.hidden = true;
+});
+mapScreenshotRetryBtn?.addEventListener('click', () => {
+  window.hubAPI?.retryMapScreenshot?.();
+  // Left open — a fresh hub:map-screenshot-preview follows shortly and
+  // repopulates the image; closing here would just flash the backdrop.
+});
+mapScreenshotCancelBtn?.addEventListener('click', () => {
+  window.hubAPI?.cancelMapScreenshot?.();
+  mapScreenshotPreviewBackdrop.hidden = true;
 });
 
 // Category filter clicks
@@ -1113,6 +1165,7 @@ async function openMatchDetail(matchId) {
       let tileset = null;
       let mapName = null;
       let isWon = match.won;
+      let roundResult = null;
 
       if (typeof r === 'string') {
         const tm = /^\[([^\]]+)\]/.exec(r);
@@ -1122,15 +1175,25 @@ async function openMatchDetail(matchId) {
         if (r.tileset && r.tileset !== 'Unknown') tileset = r.tileset;
         if (r.mapName && r.mapName !== 'Unknown') mapName = r.mapName;
         if (typeof r.won === 'boolean') isWon = r.won;
+        roundResult = r.roundResult ?? null;
       }
 
       const tilesetClean = tileset ? tileset.replace(/_Day$/i, '') : null;
       const card = document.createElement('div');
       const resultClass = isWon ? 'match-map-card--win' : 'match-map-card--loss';
-      card.className = `match-map-card ${resultClass}`;
+      // Save = the attacking side had a survivor when a non-defuse round
+      // ended (didn't get fully wiped, didn't defuse in time either) — see
+      // rescan.js's roundResult classification. Shown as a spiky/star shape
+      // instead of the normal rounded square; older archive records without
+      // roundResult (recorded before this field existed) just get the
+      // normal shape rather than a guess.
+      const isSave = roundResult === 'save';
+      card.className = `match-map-card ${resultClass}${isSave ? ' match-map-card--save' : ''}`;
+      const resultSuffix = isWon ? 'WIN' : 'LOSS';
+      const saveSuffix = isSave ? ' — SAVE' : '';
       card.title = tilesetClean
-        ? `Round ${roundNum}: [${tilesetClean}] ${mapName ?? ''} (${isWon ? 'WIN' : 'LOSS'})`
-        : `Round ${roundNum}: Unknown map (${isWon ? 'WIN' : 'LOSS'})`;
+        ? `Round ${roundNum}: [${tilesetClean}] ${mapName ?? ''} (${resultSuffix}${saveSuffix})`
+        : `Round ${roundNum}: Unknown map (${resultSuffix}${saveSuffix})`;
 
       const iconSrc = tilesetClean ? getTilesetIconPath(tilesetClean) : null;
       const iconHtml = iconSrc

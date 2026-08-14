@@ -11,7 +11,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { exec } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, screen, globalShortcut, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, screen, globalShortcut, ipcMain, shell, desktopCapturer } = require('electron');
 
 app.setName('due-process-scoreboard');
 
@@ -19,12 +19,18 @@ const config = require('./config');
 const { MatchArchive } = require('./match-archive');
 const { findLocalAccountId } = require('./local-player');
 const { MapTracker } = require('./map-tracker');
+const { MapLayoutLibrary } = require('./map-layout-library');
 const { recordCompletedMatch, scanLogFileForCompletedMatches } = require('./rescan');
 
 let overlayWindow = null;
 let hubWindow = null;
 let rankedArchive = null; // match-archive.json — ranked (7-X / 6-6) matches, the ONLY source for career totals
 let otherArchive = null; // other-matches-archive.json — everything else (unranked, 2v2, Push, ...), never counted toward totals
+let mapLayoutLibrary = null;
+// Holds the just-captured (not yet saved) picture between the hotkey press
+// and the user confirming it in the Hub's preview popup — see
+// captureMapScreenshot() and the hub:map-screenshot-confirm/retry handlers.
+let pendingMapScreenshot = null;
 
 let DueProcessLogParser = null;
 let computeMatchStats = null;
@@ -212,6 +218,78 @@ function toggleOverlayManually() {
   const currentlyShown = overlayManuallyVisible !== null ? overlayManuallyVisible : lastGameRunning;
   overlayManuallyVisible = !currentlyShown;
   applyOverlayVisibility();
+}
+
+// ---------------------------------------------------------------------
+// Map layout screenshot capture
+// ---------------------------------------------------------------------
+
+// One picture per unique (tileset, mapName) layout, captured on demand via
+// MAP_SCREENSHOT_HOTKEY — not automatic, not per-round. See
+// map-layout-library.js for why once-per-layout is enough. Pushes a preview
+// to the Hub for the user to confirm/retry rather than saving blind, since
+// there's no way to verify from here that the player was actually looking
+// at the map screen when the hotkey fired.
+async function captureMapScreenshot() {
+  const current = mapTracker.peekCurrent().at(-1);
+  if (!current) {
+    notifyMapScreenshot({ kind: 'error', message: 'No map detected yet — start a round first.' });
+    return;
+  }
+  const { tileset, mapName, seed } = current;
+
+  if (mapLayoutLibrary.hasPicture(tileset, mapName)) {
+    notifyMapScreenshot({ kind: 'info', message: `Already have a picture for ${mapName}.` });
+    return;
+  }
+
+  let sources;
+  try {
+    sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } });
+  } catch (err) {
+    console.error('captureMapScreenshot: desktopCapturer.getSources failed', err);
+    notifyMapScreenshot({ kind: 'error', message: 'Screen capture failed — see console.' });
+    return;
+  }
+
+  // Our own Hub ("Due Process Tracker") and overlay ("Due Process Overlay")
+  // windows both match a plain "dueprocess" substring too, and desktopCapturer
+  // lists every window on the system including this app's own — confirmed
+  // live: with the overlay visible, its window was winning this match and
+  // getting captured instead of the actual game. Excluding "tracker"/"overlay"
+  // rules out both of this app's own windows regardless of which happens to
+  // be listed first, without needing to know the real game window's exact title.
+  const source = sources.find((s) => {
+    const name = s.name.toLowerCase().replace(/\s+/g, '');
+    return name.includes('dueprocess') && !name.includes('tracker') && !name.includes('overlay');
+  });
+  if (!source) {
+    notifyMapScreenshot({ kind: 'error', message: 'Due Process window not found — is the game running?' });
+    return;
+  }
+
+  pendingMapScreenshot = { tileset, mapName, seed, pngBuffer: source.thumbnail.toPNG() };
+  ensureHubWindowReady(() => {
+    hubWindow.webContents.send('hub:map-screenshot-preview', {
+      tileset,
+      mapName,
+      dataUrl: source.thumbnail.toDataURL(),
+    });
+  });
+  hubWindow.show();
+  hubWindow.focus();
+}
+
+// Passive FYI (already captured / no map / capture failed) — unlike the
+// preview above, this never opens or focuses the Hub, since it isn't
+// actionable and shouldn't yank focus away from the game mid-round. Just
+// logged if the Hub isn't already open to receive it.
+function notifyMapScreenshot(payload) {
+  if (hubWindow && !hubWindow.isDestroyed() && !hubWindow.webContents.isLoading()) {
+    hubWindow.webContents.send('hub:map-screenshot-notice', payload);
+  } else {
+    console.log(`Map screenshot notice (Hub not open): ${payload.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -647,6 +725,34 @@ ipcMain.handle('hub:delete-match', (_event, matchId) => {
   return deleted;
 });
 
+// See captureMapScreenshot() — pendingMapScreenshot holds the just-captured
+// bytes between the hotkey press and the user confirming/retrying in the
+// Hub's preview popup.
+ipcMain.on('hub:map-screenshot-confirm', () => {
+  if (!pendingMapScreenshot) return;
+  const { tileset, mapName, seed, pngBuffer } = pendingMapScreenshot;
+  mapLayoutLibrary.savePicture(tileset, mapName, seed, pngBuffer);
+  pendingMapScreenshot = null;
+  notifyMapScreenshot({ kind: 'info', message: `Saved picture for ${mapName}.` });
+});
+
+ipcMain.on('hub:map-screenshot-retry', () => {
+  pendingMapScreenshot = null;
+  captureMapScreenshot();
+});
+
+ipcMain.on('hub:map-screenshot-cancel', () => {
+  pendingMapScreenshot = null;
+});
+
+// Returns a file:// URL for the renderer's <img src>, or null if this
+// layout has never been captured — the Map Layout History modal falls back
+// to the generic tileset icon in that case.
+ipcMain.handle('hub:get-map-layout-picture', (_event, tileset, mapName) => {
+  const filePath = mapLayoutLibrary.getPicturePath(tileset, mapName);
+  return filePath ? pathToFileURL(filePath).href : null;
+});
+
 // ---------------------------------------------------------------------
 // Startup
 // ---------------------------------------------------------------------
@@ -671,6 +777,7 @@ async function main() {
   const userDataDir = app.getPath('userData');
   rankedArchive = new MatchArchive(path.join(userDataDir, 'match-archive.json'));
   otherArchive = new MatchArchive(path.join(userDataDir, 'other-matches-archive.json'));
+  mapLayoutLibrary = new MapLayoutLibrary(path.join(userDataDir, 'map-layouts'));
   localAccountId = rankedArchive.getLocalAccountId() || otherArchive.getLocalAccountId();
 
   createOverlayWindow();
@@ -688,6 +795,13 @@ async function main() {
     console.log(`Successfully registered global overlay hotkey: ${config.OVERLAY_HOTKEY}`);
   } else {
     console.warn(`FAILED to register global overlay hotkey ${config.OVERLAY_HOTKEY} — it may be in use by another app.`);
+  }
+
+  const mapHotkeyRegistered = globalShortcut.register(config.MAP_SCREENSHOT_HOTKEY, captureMapScreenshot);
+  if (mapHotkeyRegistered) {
+    console.log(`Successfully registered map screenshot hotkey: ${config.MAP_SCREENSHOT_HOTKEY}`);
+  } else {
+    console.warn(`FAILED to register map screenshot hotkey ${config.MAP_SCREENSHOT_HOTKEY} — it may be in use by another app.`);
   }
 
   startGameDetection();

@@ -33,4 +33,10 @@ module.exports = {
   // conflicts with terminal shortcuts (e.g. Quake-mode backtick keybinds),
   // browser shortcuts, or in-game hotkeys.
   OVERLAY_HOTKEY: 'Control+Shift+Y',
+
+  // Captures a reference picture of the current round's map layout (see
+  // map-layout-library.js) — press while looking at the map/gear-up screen
+  // in-game. Distinct from OVERLAY_HOTKEY to avoid double-firing on the
+  // same combo.
+  MAP_SCREENSHOT_HOTKEY: 'Control+Shift+M',
 };

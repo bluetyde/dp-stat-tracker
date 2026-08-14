@@ -138,6 +138,30 @@ function recordCompletedMatch(
     const myRole = roleByRosterSide[me.rosterSide];
     const sideRole = myRole === 0 ? 'ATTACK' : myRole === 1 ? 'DEFENSE' : null;
 
+    // How the round ended, independent of who won it (winnerSide/won above
+    // already cover that). Attacker's own outcomeCode is authoritative: 1 =
+    // defused, 2 = didn't defuse. A non-defuse round further splits on
+    // whether the attacking side was fully wiped (elimination) or had a
+    // survivor when time ran out (save) — verified against real match data:
+    // every non-defuse round with 0 attacker survivors was a clean wipe,
+    // every one with >=1 survivor was a confirmed save, no exceptions found
+    // across 10 sampled rounds. Attacker side isn't necessarily "me" — this
+    // describes the round itself, not my personal result in it.
+    let roundResult = null;
+    const attackRosterSide = roleByRosterSide[0] === 0 ? 0 : roleByRosterSide[1] === 0 ? 1 : null;
+    const attackBlock = attackRosterSide === null ? null : roundObj?.teamBlocks?.[attackRosterSide];
+    if (attackBlock && typeof attackBlock.outcomeCode === 'number') {
+      if (attackBlock.outcomeCode === 1) {
+        roundResult = 'defuse';
+      } else if (attackBlock.outcomeCode === 2) {
+        const attackDeadIds = new Set(
+          (roundObj.kills ?? []).filter((k) => attackBlock.members.some((m) => m.entityId === k.victimId)).map((k) => k.victimId)
+        );
+        const attackSurvivors = attackBlock.members.length - attackDeadIds.size;
+        roundResult = attackSurvivors > 0 ? 'save' : 'elimination';
+      }
+    }
+
     mapRoundsDetailed.push({
       round: r,
       mapLabel: mapInfo.label,
@@ -146,6 +170,7 @@ function recordCompletedMatch(
       winnerSide,
       won: me.rosterSide === winnerSide,
       sideRole,
+      roundResult,
     });
   }
 
