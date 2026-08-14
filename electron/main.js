@@ -603,7 +603,10 @@ ipcMain.on('hub:request-refresh', () => {
 // whichever archive actually has it — works even after the source log has
 // rotated away, since the full scoreboard was persisted at record time.
 ipcMain.handle('hub:get-match-detail', (_event, matchId) => {
-  return rankedArchive.getMatch(matchId) ?? otherArchive.getMatch(matchId);
+  const rankedMatch = rankedArchive.getMatch(matchId);
+  if (rankedMatch) return { ...rankedMatch, isRanked: true };
+  const otherMatch = otherArchive.getMatch(matchId);
+  return otherMatch ? { ...otherMatch, isRanked: false } : null;
 });
 
 ipcMain.handle('hub:get-player-detail', (_event, accountId) => {

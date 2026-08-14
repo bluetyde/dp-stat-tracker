@@ -1147,9 +1147,72 @@ async function openMatchDetail(matchId) {
       if (prevRole && curRole && prevRole !== curRole) switchIndices.add(i);
     }
 
+    const roundLayoutKey = (r) => {
+      if (typeof r === 'string') return r.replace(/_Day$/i, '');
+      if (r && typeof r === 'object') {
+        const tileset = r.tileset && r.tileset !== 'Unknown' ? r.tileset.replace(/_Day$/i, '') : null;
+        const mapName = r.mapName && r.mapName !== 'Unknown' ? r.mapName : null;
+        return tileset || mapName ? `${tileset ?? ''}|${mapName ?? ''}` : null;
+      }
+      return null;
+    };
+    // Map change is a separate event from a role switch, and NOT the same
+    // as "this round's map differs from the previous round's" — within a
+    // block the 3 maps repeat, but not necessarily in the same fixed order
+    // each half: one real match went Dome,CStore,Killhouse,Dome,CStore,
+    // Killhouse (positional A,B,C,A,B,C repeat), another went Factory,
+    // CStore,Factory,CStore,Bank,Bank (paired, not a strict rotation) — a
+    // "does round i match round i-3" comparison breaks on the second shape.
+    // What both share: a block uses exactly 3 distinct maps before a new
+    // one starts. So this tracks the *set* of distinct maps seen since the
+    // last confirmed block start, and marks a new block when a round's map
+    // isn't in that set once it's already collected 3 — order-independent,
+    // verified against both real match shapes above.
+    const mapChangeIndices = new Set();
+    let blockMaps = new Set();
+    for (let i = 0; i < mapRounds.length; i++) {
+      const key = roundLayoutKey(mapRounds[i]);
+      if (!key) continue; // missing data — don't count it, but don't reset the block either
+      if (blockMaps.size >= 3 && !blockMaps.has(key)) {
+        mapChangeIndices.add(i);
+        blockMaps = new Set();
+      }
+      blockMaps.add(key);
+    }
+
+    // Fallback for legacy archived matches whose later rounds' data is
+    // permanently gone (source log rotated away before the relevant fixes
+    // existed) — round 7's map/role isn't derivable, so the loops above
+    // can't detect a transition that did happen. Ranked's map-set swap at
+    // round 6/7 and role swaps at 3/4 and 9/10 are confirmed structural
+    // facts (verified against real match data, not a guess the way
+    // round <= 6 "halftime" was), so they're asserted here specifically as
+    // fallbacks — only for confirmed-ranked matches, only at these three
+    // known points, only when there wasn't real data to derive them from,
+    // and never overriding real data that says otherwise.
+    if (match.isRanked) {
+      if (mapRounds.length > 6 && !mapChangeIndices.has(6) && !roundLayoutKey(mapRounds[6])) {
+        mapChangeIndices.add(6);
+      }
+      for (const idx of [3, 9]) {
+        if (mapRounds.length > idx && !switchIndices.has(idx) && !mapRounds[idx - 1]?.sideRole && !mapRounds[idx]?.sideRole) {
+          switchIndices.add(idx);
+        }
+      }
+    }
+
     for (let i = 0; i < totalRounds; i++) {
       const roundNum = i + 1;
 
+      // Both can apply at the same boundary (e.g. a mode whose map rotation
+      // and role rotation cadence happen to line up) — render whichever do,
+      // rather than picking one.
+      if (mapChangeIndices.has(i)) {
+        const divider = document.createElement('div');
+        divider.className = 'map-change-divider';
+        divider.title = 'Map Change';
+        matchDetailMapContainer.appendChild(divider);
+      }
       if (switchIndices.has(i)) {
         const divider = document.createElement('div');
         divider.className = 'halftime-divider';

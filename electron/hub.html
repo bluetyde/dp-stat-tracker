@@ -237,7 +237,7 @@
     object-fit: contain;
   }
 
-  /* Halftime Dotted Line Divider */
+  /* Halftime Dotted Line Divider — role (attack/defense) switch */
   .halftime-divider {
     width: 2px;
     height: 26px;
@@ -245,6 +245,25 @@
     border-left: 2px dotted rgba(255, 255, 255, 0.35);
     display: inline-block;
     vertical-align: middle;
+  }
+  /* Map Change Divider — solid and thicker, distinct from the role-switch
+     dotted line above since they mark different events and don't always
+     land on the same round boundary (see hub-renderer.js's openMatchDetail). */
+  .map-change-divider {
+    width: 3px;
+    height: 26px;
+    margin: 0 4px;
+    border-left: 3px solid rgba(127, 182, 232, 0.55);
+    display: inline-block;
+    vertical-align: middle;
+  }
+  /* When a map change and a role switch land on the same round boundary
+     (confirmed to happen in some non-ranked modes, unlike ranked where
+     they're offset by design), the two dividers render back-to-back —
+     tighten the gap between them so they read as one combined "both
+     happened here" marker instead of an oddly wide double gap. */
+  .map-change-divider + .halftime-divider {
+    margin-left: -1px;
   }
 
   .role-badge {
