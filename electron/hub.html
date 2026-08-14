@@ -178,7 +178,10 @@
     border: 1px solid var(--border);
   }
   #mapsTilesetGrid {
-    grid-template-columns: repeat(5, 1fr);
+    /* 5 named tilesets (Bank/Factory/Dome/CStore/Killhouse) plus an "Unknown"
+       fallback bucket for unrecognized ones — 6 is the real ceiling, so this
+       keeps every tile on one row instead of the 6th wrapping to its own. */
+    grid-template-columns: repeat(6, 1fr);
   }
   .weapons-controls {
     display: flex;
