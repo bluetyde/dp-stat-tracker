@@ -58,6 +58,15 @@ function switchView(view) {
   currentView = view;
   for (const [name, el] of Object.entries(views)) el.hidden = name !== view;
   for (const item of navItems) item.classList.toggle('active', item.dataset.view === view);
+
+  // Close open modals when switching tabs
+  const mhBackdrop = document.getElementById('mapHistoryBackdrop');
+  if (mhBackdrop) mhBackdrop.hidden = true;
+  const pdBackdrop = document.getElementById('playerDetailBackdrop');
+  if (pdBackdrop) pdBackdrop.hidden = true;
+  const mdBackdrop = document.getElementById('matchDetailBackdrop');
+  if (mdBackdrop) mdBackdrop.hidden = true;
+
   if (view === 'ranked') fetchAndRenderHistory('ranked');
   if (view === 'other') fetchAndRenderHistory('other');
   if (view === 'playedWith') renderPlayedWithTable();
@@ -289,6 +298,7 @@ function renderMapsTable() {
   // --- Render Tileset Summary Tiles ---
   mapsTilesetGrid.innerHTML = '';
   for (const t of tilesetSummary) {
+    if (t.tileset.toLowerCase() === 'unknown') continue; // Hide Unknown tileset tile from summary grid
     const tile = document.createElement('div');
     tile.className = 'stat-tile';
     const tilesetLabel = t.tileset.replace(/_Day$/i, '');
@@ -301,7 +311,7 @@ function renderMapsTable() {
   }
 
   // --- Filter and Sort Map Summary Table ---
-  let filtered = mapSummary;
+  let filtered = mapSummary.filter((m) => m.mapName.toLowerCase() !== 'unknown' && m.tileset.toLowerCase() !== 'unknown');
   if (selectedMapTileset !== 'all') {
     filtered = filtered.filter((m) => m.tileset.toLowerCase() === selectedMapTileset.toLowerCase());
   }

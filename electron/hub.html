@@ -178,10 +178,7 @@
     border: 1px solid var(--border);
   }
   #mapsTilesetGrid {
-    /* 5 named tilesets (Bank/Factory/Dome/CStore/Killhouse) plus an "Unknown"
-       fallback bucket for unrecognized ones — 6 is the real ceiling, so this
-       keeps every tile on one row instead of the 6th wrapping to its own. */
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
   }
   .weapons-controls {
     display: flex;
@@ -386,8 +383,8 @@
     text-decoration: underline;
   }
 
-  /* Player Detail Modal */
-  #playerDetailBackdrop {
+  /* Player Detail Modal & Map History Modal */
+  #playerDetailBackdrop, #mapHistoryBackdrop {
     position: fixed;
     inset: 0;
     background: rgba(5, 7, 9, 0.75);
@@ -397,7 +394,7 @@
     padding: 40px;
     z-index: 20;
   }
-  #playerDetailBackdrop[hidden] {
+  #playerDetailBackdrop[hidden], #mapHistoryBackdrop[hidden] {
     display: none !important;
   }
 
