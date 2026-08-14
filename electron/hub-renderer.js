@@ -285,6 +285,13 @@ function debouncedSaveMapTags(mapName, tags) {
   }, 400));
 }
 
+let mapSearchQuery = '';
+const mapSearchInput = document.getElementById('mapSearchInput');
+mapSearchInput?.addEventListener('input', (e) => {
+  mapSearchQuery = e.target.value;
+  renderMapsTable();
+});
+
 function renderMapsTable() {
   const mapData = latestHubData?.mapStats ?? { mapSummary: [], tilesetSummary: [], everyMap: [] };
   const mapSummary = mapData.mapSummary ?? [];
@@ -314,6 +321,12 @@ function renderMapsTable() {
   let filtered = mapSummary.filter((m) => m.mapName.toLowerCase() !== 'unknown' && m.tileset.toLowerCase() !== 'unknown');
   if (selectedMapTileset !== 'all') {
     filtered = filtered.filter((m) => m.tileset.toLowerCase() === selectedMapTileset.toLowerCase());
+  }
+  if (mapSearchQuery.trim()) {
+    const q = mapSearchQuery.trim().toLowerCase();
+    filtered = filtered.filter(
+      (m) => m.mapName.toLowerCase().includes(q) || m.tileset.toLowerCase().includes(q) || (m.note && m.note.toLowerCase().includes(q))
+    );
   }
 
   const sorted = [...filtered].sort((a, b) => {
@@ -402,19 +415,32 @@ function renderMapsTable() {
 
 function openMapHistory(m) {
   mhMapTitle.textContent = m.mapName;
-  mhTilesetBadge.textContent = `${m.tileset} · ${m.timesPlayed} Played (${m.wins}W - ${m.losses}L) · ${m.winRate}% Win Rate`;
+  const atkWr = m.attackWinRate !== undefined ? m.attackWinRate : 0;
+  const defWr = m.defenseWinRate !== undefined ? m.defenseWinRate : 0;
+  mhTilesetBadge.innerHTML = `
+    <span>${escapeHtml(m.tileset)} · ${m.timesPlayed} Played (${m.wins}W - ${m.losses}L) · ${m.winRate}% WR</span>
+    <span class="role-badge role-badge--attack" style="margin-left:8px">⚔️ ATK ${atkWr}% WR</span>
+    <span class="role-badge role-badge--defense" style="margin-left:4px">🛡️ DEF ${defWr}% WR</span>
+  `;
   
   mhBody.innerHTML = '';
   for (const h of m.history ?? []) {
     const tr = document.createElement('tr');
     const resultClass = h.won ? 'result-win' : 'result-loss';
     const resultText = h.won ? 'WIN' : 'LOSS';
+    const isAttack = (h.sideRole || 'ATTACK').toUpperCase() === 'ATTACK';
+    const roleBadgeClass = isAttack ? 'role-badge--attack' : 'role-badge--defense';
+    const roleText = isAttack ? '⚔️ ATTACK' : '🛡️ DEFENSE';
+
     tr.innerHTML = `
       <td style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-bright)">
         ${escapeHtml(h.matchup)}
       </td>
       <td style="text-align:center;font-size:13px;color:var(--text-muted)">
         Round ${h.round}
+      </td>
+      <td style="text-align:center">
+        <span class="role-badge ${roleBadgeClass}">${roleText}</span>
       </td>
       <td style="text-align:center" class="${resultClass}">
         <span style="font-weight:700;letter-spacing:.08em">${resultText}</span>
@@ -1025,12 +1051,79 @@ const matchDetailMap = document.getElementById('matchDetailMap');
 const matchDetailMeta = document.getElementById('matchDetailMeta');
 let matchDetailCurrentId = null;
 
+const TILESET_ICONS = {
+  factory: 'assets/tilesets/factory.webp',
+  killhouse: 'assets/tilesets/killhouse.webp',
+  killhouse_day: 'assets/tilesets/killhouse.webp',
+  bank: 'assets/tilesets/bank.webp',
+  cstore: 'assets/tilesets/cstore.webp',
+  dome: 'assets/tilesets/dome.webp',
+  killdome: 'assets/tilesets/dome.webp',
+};
+
+function getTilesetIconPath(tileset) {
+  if (!tileset) return null;
+  const key = tileset.toLowerCase().replace(/_day$/i, '');
+  return TILESET_ICONS[key] || TILESET_ICONS[tileset.toLowerCase()] || null;
+}
+
 async function openMatchDetail(matchId) {
   const match = await window.hubAPI.getMatchDetail(matchId);
   if (!match) return; // shouldn't happen (row came from an archive itself), but don't render a broken panel if it does
 
   matchDetailCurrentId = matchId;
-  matchDetailMap.textContent = match.mapLabel ?? '';
+
+  const matchDetailMapContainer = document.getElementById('matchDetailMapContainer');
+  if (matchDetailMapContainer) {
+    matchDetailMapContainer.innerHTML = '';
+    const mapRounds = match.mapRounds || match.roundMaps || [];
+    const totalRounds = match.roundCount || mapRounds.length || 9;
+
+    const fallbackTileset = (match.mapLabel ? (match.mapLabel.match(/^\[([^\]]+)\]/)?.[1] || 'Dome') : 'Dome').replace(/_Day$/i, '');
+    const fallbackMapName = match.mapLabel ? match.mapLabel.replace(/^\[[^\]]+\]\s*/, '') : 'Map Layout';
+
+    for (let i = 0; i < totalRounds; i++) {
+      const roundNum = i + 1;
+
+      // Render halftime dotted divider after Round 6 (between R6 and R7)
+      if (i === 6) {
+        const divider = document.createElement('div');
+        divider.className = 'halftime-divider';
+        divider.title = 'Halftime / Side Switch (Rounds 7–12)';
+        matchDetailMapContainer.appendChild(divider);
+      }
+
+      const r = mapRounds[i];
+      let tileset = fallbackTileset;
+      let mapName = fallbackMapName;
+      let isWon = match.won;
+
+      if (typeof r === 'string') {
+        const tm = /^\[([^\]]+)\]/.exec(r);
+        if (tm) tileset = tm[1];
+        mapName = r.replace(/^\[[^\]]+\]\s*/, '');
+      } else if (r && typeof r === 'object') {
+        if (r.tileset && r.tileset !== 'Unknown') tileset = r.tileset;
+        if (r.mapName && r.mapName !== 'Unknown') mapName = r.mapName;
+        if (typeof r.won === 'boolean') isWon = r.won;
+      }
+
+      const tilesetClean = tileset.replace(/_Day$/i, '');
+      const card = document.createElement('div');
+      const resultClass = isWon ? 'match-map-card--win' : 'match-map-card--loss';
+      card.className = `match-map-card ${resultClass}`;
+      card.title = `Round ${roundNum}: [${tilesetClean}] ${mapName} (${isWon ? 'WIN' : 'LOSS'})`;
+
+      const iconSrc = getTilesetIconPath(tilesetClean);
+      const iconHtml = iconSrc
+        ? `<img class="match-map-card__icon" src="${iconSrc}" alt="R${roundNum}" />`
+        : `<span style="font-size:10px;font-weight:700">${escapeHtml(tilesetClean.slice(0, 2))}</span>`;
+
+      card.innerHTML = iconHtml;
+      matchDetailMapContainer.appendChild(card);
+    }
+  }
+
   const inferredNote = match.inferred ? ' · INFERRED (no matchEnded seen)' : '';
   matchDetailMeta.textContent = `${match.roundCount} rounds${inferredNote}`;
   renderScoreboardTeams(matchDetailTeams, {

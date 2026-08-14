@@ -589,6 +589,11 @@ class MatchArchive {
         const cleanTileset = tileset.replace(/_Day$/i, '');
         const cleanMapName = mapName.replace(/^\[[^\]]+\]\s*/, '').replace(/_Day$/i, '');
 
+        // Determine player side role for this round (ATTACK vs DEFENSE)
+        const mySide = match.localAccountId && match.teams ? (match.teams[0]?.some((r) => r.accountId === match.localAccountId) ? 0 : 1) : 0;
+        const isFirstHalf = roundNum <= 6;
+        const sideRole = mySide === 0 ? (isFirstHalf ? 'ATTACK' : 'DEFENSE') : (isFirstHalf ? 'DEFENSE' : 'ATTACK');
+
         const entry = {
           matchId: match.matchId,
           timestamp: match.timestamp,
@@ -598,6 +603,7 @@ class MatchArchive {
           tileset: cleanTileset,
           matchup,
           won,
+          sideRole,
         };
 
         everyMap.push(entry);
@@ -619,6 +625,10 @@ class MatchArchive {
           timesPlayed: 0,
           wins: 0,
           losses: 0,
+          attackRounds: 0,
+          attackWins: 0,
+          defenseRounds: 0,
+          defenseWins: 0,
           note: mapNotes[cleanMapName] || '',
           tags: mapTags[cleanMapName] || [],
           history: [],
@@ -626,6 +636,15 @@ class MatchArchive {
         existingM.timesPlayed += 1;
         if (won) existingM.wins += 1;
         else existingM.losses += 1;
+
+        if (sideRole === 'ATTACK') {
+          existingM.attackRounds += 1;
+          if (won) existingM.attackWins += 1;
+        } else if (sideRole === 'DEFENSE') {
+          existingM.defenseRounds += 1;
+          if (won) existingM.defenseWins += 1;
+        }
+
         existingM.history.push(entry);
         byMapName.set(cleanMapName, existingM);
       }
@@ -642,6 +661,8 @@ class MatchArchive {
       .map((m) => ({
         ...m,
         winRate: m.timesPlayed > 0 ? Math.round((m.wins / m.timesPlayed) * 100) : 0,
+        attackWinRate: m.attackRounds > 0 ? Math.round((m.attackWins / m.attackRounds) * 100) : 0,
+        defenseWinRate: m.defenseRounds > 0 ? Math.round((m.defenseWins / m.defenseRounds) * 100) : 0,
       }))
       .sort((a, b) => b.timesPlayed - a.timesPlayed || b.wins - a.wins);
 

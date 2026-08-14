@@ -33,4 +33,7 @@ module.exports = {
   // conflicts with terminal shortcuts (e.g. Quake-mode backtick keybinds),
   // browser shortcuts, or in-game hotkeys.
   OVERLAY_HOTKEY: 'Control+Shift+Y',
+
+  // Global hotkey to capture in-game map screenshot
+  MAP_SCREENSHOT_HOTKEY: 'CommandOrControl+Shift+M',
 };

@@ -177,6 +177,95 @@
     background: var(--border);
     border: 1px solid var(--border);
   }
+  /* Match Detail Header Map Cards - Per-Round Picture Frames */
+  .match-map-card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    border: 2px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 2px;
+    box-sizing: border-box;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .match-map-card:hover {
+    transform: translateY(-2px) scale(1.08);
+    z-index: 5;
+  }
+  .match-map-card--win {
+    border-color: #7ebce8;
+    background: rgba(126, 188, 232, 0.22);
+    box-shadow: 0 0 10px rgba(126, 188, 232, 0.4);
+  }
+  .match-map-card--loss {
+    border-color: #f45b69;
+    background: rgba(244, 91, 105, 0.22);
+    box-shadow: 0 0 10px rgba(244, 91, 105, 0.4);
+  }
+  .match-map-card--tie {
+    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .match-map-card--win .match-map-card__icon {
+    filter: sepia(100%) hue-rotate(170deg) saturate(350%) brightness(1.2) drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  }
+  .match-map-card--loss .match-map-card__icon {
+    filter: sepia(100%) hue-rotate(310deg) saturate(450%) brightness(1.1) drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  }
+  .match-map-card__icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    object-fit: contain;
+  }
+
+  /* Halftime Dotted Line Divider */
+  .halftime-divider {
+    width: 2px;
+    height: 26px;
+    margin: 0 4px;
+    border-left: 2px dotted rgba(255, 255, 255, 0.35);
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .role-badge--attack {
+    color: #f4848d;
+    background: rgba(244, 91, 105, 0.12);
+    border: 1px solid rgba(244, 91, 105, 0.3);
+  }
+  .role-badge--defense {
+    color: #84c0f4;
+    background: rgba(132, 192, 244, 0.12);
+    border: 1px solid rgba(132, 192, 244, 0.3);
+  }
+
+  #matchDetailCard {
+    width: 900px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
   #mapsTilesetGrid {
     grid-template-columns: repeat(5, 1fr);
   }
@@ -904,8 +993,8 @@
         <!-- Map Tileset Summary Grid -->
         <div class="weapons-summary-grid" id="mapsTilesetGrid"></div>
 
-        <!-- Category Filters -->
-        <div class="weapons-controls">
+        <!-- Category Filters & Map Search -->
+        <div class="weapons-controls" style="display:flex;justify-content:space-between;align-items:center;width:100%">
           <div class="category-filters" id="mapTilesetFilters">
             <button class="cat-pill active" data-mapcat="all">All Sets</button>
             <button class="cat-pill" data-mapcat="Bank">Bank</button>
@@ -913,6 +1002,9 @@
             <button class="cat-pill" data-mapcat="Dome">Dome</button>
             <button class="cat-pill" data-mapcat="CStore">CStore</button>
             <button class="cat-pill" data-mapcat="Killhouse">Killhouse</button>
+          </div>
+          <div class="pw-search-box" style="margin-left:auto">
+            <input type="text" id="mapSearchInput" class="pw-search-input" placeholder="Search map layout..." style="width:220px;padding:6px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border-soft);color:var(--text-bright);border-radius:4px;font-family:var(--font-body);font-size:13px" />
           </div>
         </div>
 
@@ -988,7 +1080,7 @@
   </div>
 
   <div id="mapHistoryBackdrop" hidden>
-    <section id="mapHistoryCard" class="panel" style="width:680px;padding:24px;display:flex;flex-direction:column;gap:16px">
+    <section id="mapHistoryCard" class="panel" style="width:720px;padding:24px;display:flex;flex-direction:column;gap:16px">
       <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
       <header style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
@@ -998,12 +1090,25 @@
         </div>
         <button id="mhCloseBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:6px 14px;cursor:pointer">CLOSE</button>
       </header>
-      <div class="panel" style="padding:16px;max-height:400px;overflow-y:auto">
+
+      <!-- In-Game Map Layout Screenshot Section -->
+      <div id="mhScreenshotContainer" class="panel" style="padding:14px;display:flex;flex-direction:column;gap:8px;background:rgba(0,0,0,0.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:var(--font-display);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted)">📷 In-Game Map Screenshot</span>
+          <span style="font-size:10px;font-family:var(--font-display);color:var(--text-faint)">Shortcut: Ctrl+Shift+M</span>
+        </div>
+        <div id="mhScreenshotBody" style="display:flex;align-items:center;justify-content:center;min-height:80px;border:1px dashed var(--border-soft);border-radius:4px;padding:10px;background:rgba(255,255,255,0.01)">
+          <span style="font-size:12px;color:var(--text-faint)">No screenshot captured for this layout yet. Press Ctrl+Shift+M while viewing map in-game.</span>
+        </div>
+      </div>
+
+      <div class="panel" style="padding:16px;max-height:360px;overflow-y:auto">
         <table class="rows" id="mhTable">
           <thead>
             <tr>
               <th>Matchup</th>
               <th style="text-align:center">Round</th>
+              <th style="text-align:center">Side</th>
               <th style="text-align:center">Outcome</th>
             </tr>
           </thead>
@@ -1017,9 +1122,9 @@
     <section id="matchDetailCard" class="panel">
       <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
       <header id="matchDetailHeader">
-        <div style="display:flex;align-items:center;gap:14px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <span class="title">Match Detail</span>
-          <span class="meta" id="matchDetailMap"></span>
+          <div id="matchDetailMapContainer" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
           <span class="meta" id="matchDetailMeta"></span>
         </div>
         <div style="display:flex;gap:8px">

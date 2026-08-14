@@ -18,7 +18,7 @@
 // displayed as "[Bank] Arrow Obsidian".
 
 const MAP_LINE_RE =
-  /Levels:: Loading game level and background ,\[([^\]]+)\] (.+?) \[(-?\d+)\] \(\)/;
+  /Levels:: Loading game level and background\s*,\s*\[([^\]]+)\]\s*(.+?)\s*\[(-?\d+)\]/i;
 
 class MapTracker {
   constructor() {
