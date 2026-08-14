@@ -33,6 +33,9 @@ const VIVOX_MATCH_START_RE = /VivoxChatClient::HandleMatchStart\(\s*([0-9a-fA-F-
 const KILLFEED_RE =
   /^KillLogUI :: Entry :: <color=(#[0-9A-Fa-f]+)>(?:<noparse>)?(.*?)(?:<\/noparse>)?<\/color> (.+?) <color=(#[0-9A-Fa-f]+)>(?:<noparse>)?(.*?)(?:<\/noparse>)?<\/color> @ (\d+)\s*$/;
 
+// Matches lines like: Levels:: Loading game level and background ,[Dome] Mendicant Hound [-1073089108] (),dome level set dome
+const LEVEL_LOAD_RE = /Levels:: Loading game level and background\s*,\s*\[(.*?)\]\s*(.*?)\s*\[/i;
+
 function extractJsonObject(line, marker) {
   const idx = line.indexOf(marker);
   if (idx === -1) return null;
@@ -66,9 +69,10 @@ function extractGecNetPayload(line, typeName) {
   }
 }
 
-function newRound(number) {
+function newRound(number, mapLabel = null) {
   return {
     number,
+    mapLabel,
     teamBlocks: { 0: null, 1: null },
     kills: [],
     damage: [],
@@ -111,6 +115,7 @@ export class DueProcessLogParser {
     this.current = null; // in-progress match, or null between matches
     this._sawMatchStarted = false;
     this._pendingLiveMatchId = null; // captured pre-match-open; see feedLine's Vivox handling
+    this._pendingMapLabel = null;
     this._pendingTeam0Name = null;
     this._pendingTeam1Name = null;
     this._tail = ''; // buffered partial line, for incremental/streaming input
@@ -157,6 +162,11 @@ export class DueProcessLogParser {
       if (this.current && !this.current.liveMatchId) {
         this.current.liveMatchId = vivoxMatch[1];
       }
+    }
+
+    const levelMatch = LEVEL_LOAD_RE.exec(line);
+    if (levelMatch) {
+      this._pendingMapLabel = `[${levelMatch[1].trim()}] ${levelMatch[2].trim()}`;
     }
 
     if (this.current === null) {
@@ -249,7 +259,7 @@ export class DueProcessLogParser {
 
   _round(number) {
     const rounds = this.current.roundsByNumber;
-    if (!rounds.has(number)) rounds.set(number, newRound(number));
+    if (!rounds.has(number)) rounds.set(number, newRound(number, this._pendingMapLabel));
     return rounds.get(number);
   }
 
