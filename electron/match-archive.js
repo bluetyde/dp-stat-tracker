@@ -95,7 +95,7 @@ class MatchArchive {
         for (const r of m.teams[side] || []) {
           if (r.teamDamage === undefined) r.teamDamage = 0;
           if (Array.isArray(r.weaponBreakdown)) {
-            r.weaponBreakdown.sort((a, b) => b.damage - a.damage || b.kills - a.kills);
+            r.weaponBreakdown.sort((a, b) => (b.healthPercentScore ?? 0) - (a.healthPercentScore ?? 0) || b.damage - a.damage || b.kills - a.kills);
             const fired = r.weaponBreakdown.filter((w) => w.hits > 0);
             r.bestWeapon = fired[0] ?? null;
           }
@@ -144,7 +144,7 @@ class MatchArchive {
   isLegacyMatch(matchId) {
     const m = this.getMatch(matchId);
     if (!m) return false;
-    if (!m._schemaVersion || m._schemaVersion < 3) return true;
+    if (!m._schemaVersion || m._schemaVersion < 4) return true;
     const rounds = m.mapRounds || m.roundMaps;
     if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
     return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
@@ -174,13 +174,13 @@ class MatchArchive {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);
     if (existingIndex !== -1) {
       if (this.isLegacyMatch(entry.matchId)) {
-        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 3 };
+        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 4 };
         this._save();
       }
       return;
     }
 
-    this.data.matches.push({ ...entry, _schemaVersion: 3 });
+    this.data.matches.push({ ...entry, _schemaVersion: 4 });
     if (this.data.matches.length > MAX_MATCHES) {
       this.data.matches.splice(0, this.data.matches.length - MAX_MATCHES);
     }

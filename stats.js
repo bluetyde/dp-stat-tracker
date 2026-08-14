@@ -161,6 +161,7 @@ function emptyAgg(accountId, known) {
     weaponDeaths: new Map(), // damageSource -> times this player died to that weapon
     weaponHeadshots: new Map(), // damageSource -> headshot-magnitude hits landed (see isHeadshotDamage)
     weaponRoundsUsed: new Map(), // damageSource -> Set of round numbers this weapon dealt damage or got a kill in
+    weaponHealthScore: new Map(), // damageSource -> sum of (damageDealt / victimMaxHP) per hit (see Austenke dp-stats formula)
     teamDamage: 0,
   };
 }
@@ -219,6 +220,9 @@ export function computeMatchStats(match, config = {}) {
       else if (d.attackerSide === 1) agg.defenseDamage += d.damageDealt;
       agg.weaponDamage.set(d.damageSource, (agg.weaponDamage.get(d.damageSource) ?? 0) + d.damageDealt);
       agg.weaponHits.set(d.damageSource, (agg.weaponHits.get(d.damageSource) ?? 0) + 1);
+      const victimMaxHP = d.victimSide === 0 ? 150 : 100;
+      const healthFrac = d.damageDealt / victimMaxHP;
+      agg.weaponHealthScore.set(d.damageSource, (agg.weaponHealthScore.get(d.damageSource) ?? 0) + healthFrac);
       if (isHeadshotDamage(d.damageSource, d.damageDealt)) {
         agg.weaponHeadshots.set(d.damageSource, (agg.weaponHeadshots.get(d.damageSource) ?? 0) + 1);
       }
@@ -264,8 +268,10 @@ export function computeMatchStats(match, config = {}) {
         if (delta < 0 || delta > cfg.assistTimeWindowTicks) continue;
         candidateDamage.set(d.attackerId, (candidateDamage.get(d.attackerId) ?? 0) + d.damageDealt);
       }
+      const victimMaxHP = k.victimSide === 0 ? 150 : 100;
+      const minAssistDmg = cfg.assistDamageThreshold ?? (victimMaxHP * 0.3);
       for (const [entityId, dmg] of candidateDamage) {
-        if (dmg < cfg.assistDamageThreshold) continue;
+        if (dmg < minAssistDmg) continue;
         const accountId = entityToAccount.get(entityId);
         if (!accountId) continue;
         ensure(accountId).assists += 1;
@@ -377,13 +383,15 @@ function finalizeRow(agg) {
         damage: Math.round(agg.weaponDamage.get(code) ?? 0),
         kills: agg.weaponKills.get(code) ?? 0,
         deaths: agg.weaponDeaths.get(code) ?? 0,
+        // Percent of victim max-health destroyed per Austenke's dp-stats formula
+        healthPercentScore: agg.weaponHealthScore.get(code) ?? 0,
         // null (not 0) means "no headshot data for this weapon" — see
         // weaponBaseDamage — so the Hub can render "—" instead of a fake 0%.
         headshots: code in weaponBaseDamage ? agg.weaponHeadshots.get(code) ?? 0 : null,
         roundsUsed: agg.weaponRoundsUsed.get(code)?.size ?? 0,
       };
     })
-    .sort((a, b) => b.damage - a.damage || b.kills - a.kills);
+    .sort((a, b) => b.healthPercentScore - a.healthPercentScore || b.damage - a.damage || b.kills - a.kills);
   // bestWeapon stays scoped to weapons this player actually fired, so a
   // weapon they only ever died to (0 hits, 0 kills) can never end up as
   // their "best" weapon just by being in the union list above.
