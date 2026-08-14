@@ -20,6 +20,13 @@
 const MAP_LINE_RE =
   /Levels:: Loading game level and background\s*,\s*\[([^\]]+)\]\s*(.+?)\s*\[(-?\d+)\]/i;
 
+// Coarse pre-check for "this looks like a map-load line" — used only to
+// detect when MAP_LINE_RE itself fails to match one, so a future format
+// change shows up as a console warning instead of silently degrading into
+// "Unknown Map" the way the missing-parens/space cases did before this file
+// was last fixed.
+const MAP_LINE_PREFIX_RE = /Levels:: Loading game level and background/;
+
 class MapTracker {
   constructor() {
     this._pending = []; // map labels seen so far, in file order, not yet consumed by a finalized match
@@ -33,6 +40,8 @@ class MapTracker {
       if (m) {
         const [, tileset, mapName, seed] = m;
         this._pending.push({ tileset, mapName, seed, label: `[${tileset}] ${mapName}` });
+      } else if (MAP_LINE_PREFIX_RE.test(line)) {
+        console.warn('MapTracker: line looks like a map load but did not match MAP_LINE_RE:', line);
       }
     }
   }

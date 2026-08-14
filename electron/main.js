@@ -28,6 +28,7 @@ let otherArchive = null; // other-matches-archive.json — everything else (unra
 
 let DueProcessLogParser = null;
 let computeMatchStats = null;
+let roundRoleByRosterSide = null;
 let deriveFinalScoreFromRounds = null;
 let parser = null;
 const mapTracker = new MapTracker();
@@ -195,6 +196,7 @@ function handleConfirmedGameExit() {
     rankedArchive,
     otherArchive,
     computeMatchStats,
+    roundRoleByRosterSide,
     mapTracker,
     accountId,
     inferred: true,
@@ -306,7 +308,7 @@ function onParserUpdate() {
   let recordedAny = false;
   if (parser) {
     for (const match of parser.matches) {
-      if (recordCompletedMatch(match, { rankedArchive, otherArchive, computeMatchStats, mapTracker, accountId })) {
+      if (recordCompletedMatch(match, { rankedArchive, otherArchive, computeMatchStats, roundRoleByRosterSide, mapTracker, accountId })) {
         recordedAny = true;
       }
     }
@@ -657,6 +659,7 @@ async function main() {
   DueProcessLogParser = parserModule.DueProcessLogParser;
   deriveFinalScoreFromRounds = parserModule.deriveFinalScoreFromRounds;
   computeMatchStats = statsModule.computeMatchStats;
+  roundRoleByRosterSide = statsModule.roundRoleByRosterSide;
   parser = new DueProcessLogParser();
 
   await app.whenReady();
@@ -706,6 +709,7 @@ async function main() {
     filePath: config.PLAYER_PREV_LOG_PATH,
     DueProcessLogParser,
     computeMatchStats,
+    roundRoleByRosterSide,
     rankedArchive,
     otherArchive,
     findLocalAccountId,
@@ -716,6 +720,7 @@ async function main() {
     filePath: config.PLAYER_LOG_PATH,
     DueProcessLogParser,
     computeMatchStats,
+    roundRoleByRosterSide,
     rankedArchive,
     otherArchive,
     findLocalAccountId,

@@ -428,9 +428,9 @@ function openMapHistory(m) {
     const tr = document.createElement('tr');
     const resultClass = h.won ? 'result-win' : 'result-loss';
     const resultText = h.won ? 'WIN' : 'LOSS';
-    const isAttack = (h.sideRole || 'ATTACK').toUpperCase() === 'ATTACK';
-    const roleBadgeClass = isAttack ? 'role-badge--attack' : 'role-badge--defense';
-    const roleText = isAttack ? '⚔️ ATTACK' : '🛡️ DEFENSE';
+    const role = (h.sideRole || '').toUpperCase();
+    const roleBadgeClass = role === 'ATTACK' ? 'role-badge--attack' : role === 'DEFENSE' ? 'role-badge--defense' : 'role-badge--unknown';
+    const roleText = role === 'ATTACK' ? '⚔️ ATTACK' : role === 'DEFENSE' ? '🛡️ DEFENSE' : '— UNKNOWN';
 
     tr.innerHTML = `
       <td style="font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-bright)">
@@ -1047,7 +1047,6 @@ async function confirmAndDeleteMatch(matchId, mapLabel) {
 
 const matchDetailBackdrop = document.getElementById('matchDetailBackdrop');
 const matchDetailTeams = document.getElementById('matchDetailTeams');
-const matchDetailMap = document.getElementById('matchDetailMap');
 const matchDetailMeta = document.getElementById('matchDetailMeta');
 let matchDetailCurrentId = null;
 
@@ -1079,23 +1078,40 @@ async function openMatchDetail(matchId) {
     const mapRounds = match.mapRounds || match.roundMaps || [];
     const totalRounds = match.roundCount || mapRounds.length || 9;
 
-    const fallbackTileset = (match.mapLabel ? (match.mapLabel.match(/^\[([^\]]+)\]/)?.[1] || 'Dome') : 'Dome').replace(/_Day$/i, '');
-    const fallbackMapName = match.mapLabel ? match.mapLabel.replace(/^\[[^\]]+\]\s*/, '') : 'Map Layout';
+    // Halftime/side-switch happens whenever this player's role flips —
+    // Ranked BO12 swaps sides every 3 rounds, not once at round 6 — a
+    // defense-starting player's roles run ddd|aaa|aaa|ddd (rounds 7-9 keep
+    // the round 4-6 role; the map set changes there, the side doesn't), so
+    // there are two side-switch points in a full match, at 3/4 and 9/10, not
+    // one. Other modes differ again (see rescan.js's isRankedFinalScore
+    // comment), so this is found from the actual per-round sideRole data
+    // rather than assumed at any fixed round. If no round in this match
+    // carries sideRole (older archive record, recorded before that field
+    // existed), no dividers are drawn rather than guessing.
+    const switchIndices = new Set();
+    for (let i = 1; i < mapRounds.length; i++) {
+      const prevRole = mapRounds[i - 1]?.sideRole;
+      const curRole = mapRounds[i]?.sideRole;
+      if (prevRole && curRole && prevRole !== curRole) switchIndices.add(i);
+    }
 
     for (let i = 0; i < totalRounds; i++) {
       const roundNum = i + 1;
 
-      // Render halftime dotted divider after Round 6 (between R6 and R7)
-      if (i === 6) {
+      if (switchIndices.has(i)) {
         const divider = document.createElement('div');
         divider.className = 'halftime-divider';
-        divider.title = 'Halftime / Side Switch (Rounds 7–12)';
+        divider.title = 'Side Switch';
         matchDetailMapContainer.appendChild(divider);
       }
 
       const r = mapRounds[i];
-      let tileset = fallbackTileset;
-      let mapName = fallbackMapName;
+      // No plausible-looking default here — a missing tileset/mapName means
+      // the data genuinely wasn't captured for this round (see the map-line
+      // interleaving/watcher-timing gap this was investigated for), and
+      // showing e.g. a Dome icon would misrepresent that as real data.
+      let tileset = null;
+      let mapName = null;
       let isWon = match.won;
 
       if (typeof r === 'string') {
@@ -1108,16 +1124,18 @@ async function openMatchDetail(matchId) {
         if (typeof r.won === 'boolean') isWon = r.won;
       }
 
-      const tilesetClean = tileset.replace(/_Day$/i, '');
+      const tilesetClean = tileset ? tileset.replace(/_Day$/i, '') : null;
       const card = document.createElement('div');
       const resultClass = isWon ? 'match-map-card--win' : 'match-map-card--loss';
       card.className = `match-map-card ${resultClass}`;
-      card.title = `Round ${roundNum}: [${tilesetClean}] ${mapName} (${isWon ? 'WIN' : 'LOSS'})`;
+      card.title = tilesetClean
+        ? `Round ${roundNum}: [${tilesetClean}] ${mapName ?? ''} (${isWon ? 'WIN' : 'LOSS'})`
+        : `Round ${roundNum}: Unknown map (${isWon ? 'WIN' : 'LOSS'})`;
 
-      const iconSrc = getTilesetIconPath(tilesetClean);
+      const iconSrc = tilesetClean ? getTilesetIconPath(tilesetClean) : null;
       const iconHtml = iconSrc
         ? `<img class="match-map-card__icon" src="${iconSrc}" alt="R${roundNum}" />`
-        : `<span style="font-size:10px;font-weight:700">${escapeHtml(tilesetClean.slice(0, 2))}</span>`;
+        : `<span style="font-size:10px;font-weight:700">${tilesetClean ? escapeHtml(tilesetClean.slice(0, 2)) : '?'}</span>`;
 
       card.innerHTML = iconHtml;
       matchDetailMapContainer.appendChild(card);

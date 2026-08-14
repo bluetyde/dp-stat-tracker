@@ -68,7 +68,16 @@ const { MapTracker } = require('./map-tracker');
  */
 function recordCompletedMatch(
   match,
-  { rankedArchive, otherArchive, computeMatchStats, mapTracker, accountId, inferred = false, deriveFinalScoreFromRounds }
+  {
+    rankedArchive,
+    otherArchive,
+    computeMatchStats,
+    roundRoleByRosterSide,
+    mapTracker,
+    accountId,
+    inferred = false,
+    deriveFinalScoreFromRounds,
+  }
 ) {
   if (inferred) {
     if (match.status !== 'in-progress') return false; // only for a match that's still open when the process exited
@@ -120,6 +129,15 @@ function recordCompletedMatch(
     const winnerSide = wins0 > prevWins0 ? 0 : 1;
     prevWins0 = wins0;
 
+    // Real per-round role, from the actual attackerSide/victimSide on this
+    // round's own kill/damage lines — not a guessed "round <= 6" halftime
+    // split, which breaks for non-ranked modes with different round counts
+    // (see isRankedFinalScore's comment) and doesn't account for which
+    // roster side actually started on which role.
+    const roleByRosterSide = roundObj ? roundRoleByRosterSide(roundObj) : {};
+    const myRole = roleByRosterSide[me.rosterSide];
+    const sideRole = myRole === 0 ? 'ATTACK' : myRole === 1 ? 'DEFENSE' : null;
+
     mapRoundsDetailed.push({
       round: r,
       mapLabel: mapInfo.label,
@@ -127,6 +145,7 @@ function recordCompletedMatch(
       mapName: mapInfo.mapName ?? mapInfo.label,
       winnerSide,
       won: me.rosterSide === winnerSide,
+      sideRole,
     });
   }
 
@@ -191,6 +210,7 @@ async function scanLogFileForCompletedMatches({
   filePath,
   DueProcessLogParser,
   computeMatchStats,
+  roundRoleByRosterSide,
   rankedArchive,
   otherArchive,
   findLocalAccountId,
@@ -223,7 +243,7 @@ async function scanLogFileForCompletedMatches({
   // parser.matches holds only completed matches (an in-progress one lives
   // separately in parser.current).
   for (const match of parser.matches) {
-    if (recordCompletedMatch(match, { rankedArchive, otherArchive, computeMatchStats, mapTracker, accountId })) {
+    if (recordCompletedMatch(match, { rankedArchive, otherArchive, computeMatchStats, roundRoleByRosterSide, mapTracker, accountId })) {
       recorded += 1;
     }
   }
@@ -234,6 +254,7 @@ async function scanLogFileForCompletedMatches({
         rankedArchive,
         otherArchive,
         computeMatchStats,
+        roundRoleByRosterSide,
         mapTracker,
         accountId,
         inferred: true,

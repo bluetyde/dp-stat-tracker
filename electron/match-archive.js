@@ -144,7 +144,7 @@ class MatchArchive {
   isLegacyMatch(matchId) {
     const m = this.getMatch(matchId);
     if (!m) return false;
-    if (!m._schemaVersion || m._schemaVersion < 6) return true;
+    if (!m._schemaVersion || m._schemaVersion < 7) return true;
     const rounds = m.mapRounds || m.roundMaps;
     if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
     return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
@@ -174,13 +174,13 @@ class MatchArchive {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);
     if (existingIndex !== -1) {
       if (this.isLegacyMatch(entry.matchId)) {
-        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 6 };
+        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 7 };
         this._save();
       }
       return;
     }
 
-    this.data.matches.push({ ...entry, _schemaVersion: 6 });
+    this.data.matches.push({ ...entry, _schemaVersion: 7 });
     if (this.data.matches.length > MAX_MATCHES) {
       this.data.matches.splice(0, this.data.matches.length - MAX_MATCHES);
     }
@@ -589,10 +589,12 @@ class MatchArchive {
         const cleanTileset = tileset.replace(/_Day$/i, '');
         const cleanMapName = mapName.replace(/^\[[^\]]+\]\s*/, '').replace(/_Day$/i, '');
 
-        // Determine player side role for this round (ATTACK vs DEFENSE)
-        const mySide = match.localAccountId && match.teams ? (match.teams[0]?.some((r) => r.accountId === match.localAccountId) ? 0 : 1) : 0;
-        const isFirstHalf = roundNum <= 6;
-        const sideRole = mySide === 0 ? (isFirstHalf ? 'ATTACK' : 'DEFENSE') : (isFirstHalf ? 'DEFENSE' : 'ATTACK');
+        // Real per-round role, recorded by rescan.js from the round's own
+        // attackerSide/victimSide data (see stats.js's roundRoleByRosterSide).
+        // Not derivable here after the fact — round-count-per-half varies by
+        // game mode (see rescan.js's isRankedFinalScore comment), so there's
+        // no safe guess for matches recorded before this field existed.
+        const sideRole = item && typeof item === 'object' ? item.sideRole ?? null : null;
 
         const entry = {
           matchId: match.matchId,

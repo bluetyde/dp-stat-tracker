@@ -114,7 +114,7 @@ function roundEntityMap(round, match) {
 // for the whole match; battlefield role rotates round to round and is only
 // visible via attackerSide/victimSide on individual Kill/Damage lines, so
 // this reads the first such line involving a member of each roster side.
-function roundRoleByRosterSide(round) {
+export function roundRoleByRosterSide(round) {
   const role = { 0: undefined, 1: undefined };
   const rosterSideByEntity = new Map();
   for (const side of [0, 1]) {
