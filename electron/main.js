@@ -513,6 +513,10 @@ function sendHubUpdate() {
   // function already needs for the `lifetime` key.
   const lifetimeStats = rankedArchive.getLifetimeStats();
   hubWindow.webContents.send('hub:update', {
+    // Reads package.json's "version" directly (Electron's own mechanism,
+    // not a separately-maintained copy) — hub.html's "Tracker vX.Y" label
+    // had been hardcoded and drifted stale across several version bumps.
+    appVersion: app.getVersion(),
     playerName: currentPlayerName(),
     // Raw accountId (not just the display name above) — the Career Overview
     // avatar fetch needs it for hub:get-steam-avatar the same way every

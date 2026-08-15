@@ -3,6 +3,7 @@
 // window.hubAPI; never touches fs or the archives directly.
 
 const playerNameEl = document.getElementById('playerName');
+const appVersionLabelEl = document.getElementById('appVersionLabel');
 const playerAvatarEl = document.getElementById('playerAvatar');
 const playerRatingBadgeEl = document.getElementById('playerRatingBadge');
 const playerRatingEl = document.getElementById('playerRating');
@@ -96,6 +97,7 @@ async function fetchAndRenderHistory(kind) {
 function render(data) {
   latestHubData = data;
   playerNameEl.textContent = data.playerName || '—';
+  if (data.appVersion) appVersionLabelEl.textContent = `Tracker v${data.appVersion}`;
 
   const hasRanked = !!(data.lifetime && data.lifetime.matchesRecorded > 0);
 
