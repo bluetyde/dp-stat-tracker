@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('hubAPI', {
   getOtherHistory: () => ipcRenderer.invoke('hub:get-other-history'),
   getPlayerDetail: (accountId) => ipcRenderer.invoke('hub:get-player-detail', accountId),
   getSteamAvatar: (accountId) => ipcRenderer.invoke('hub:get-steam-avatar', accountId),
+  // Live player count for the game itself (Steam's public API), not
+  // per-account data — see main.js's handleGetPlayerCount.
+  getPlayerCount: () => ipcRenderer.invoke('hub:get-player-count'),
   // `which` is optional — 'ranked' (default), or 'other' for the otherArchive.
   exportCsv: (which) => ipcRenderer.invoke('hub:export-csv', which),
   saveMapNote: (mapName, note) => ipcRenderer.invoke('hub:save-map-note', mapName, note),

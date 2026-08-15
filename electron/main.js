@@ -595,6 +595,39 @@ function handleGetSteamAvatar(_event, accountId) {
 }
 ipcMain.handle('hub:get-steam-avatar', handleGetSteamAvatar);
 
+// Due Process's Steam app id, hardcoded — the only parameter this request
+// ever sends, so there's no variable input to validate the way accountId
+// needs isValidSteamAccountId above. No API key required for this specific
+// endpoint. Not cached: only ever called on Hub load and manual refresh
+// clicks, never polled, so a fresh number each time is exactly what's
+// wanted rather than something to dedupe against.
+const DUE_PROCESS_STEAM_APP_ID = 753650;
+
+function handleGetPlayerCount() {
+  return new Promise((resolve) => {
+    const url = `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${DUE_PROCESS_STEAM_APP_ID}`;
+    const req = httpsClient.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const count = parsed?.response?.player_count;
+          resolve(typeof count === 'number' ? count : null);
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(4000, () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+ipcMain.handle('hub:get-player-count', handleGetPlayerCount);
+
 ipcMain.on('hub:request-refresh', () => {
   sendHubUpdate();
 });

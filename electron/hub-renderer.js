@@ -1352,12 +1352,32 @@ function renderSparkline(trend) {
   sparklineAvgEl.textContent = `avg ${(Math.round(avg * 10) / 10).toFixed(1)}`;
 }
 
+// Live Steam player count for the game itself — separate from the archive
+// refresh above (window.hubAPI.requestRefresh), fetched fresh on load and
+// on every manual refresh click rather than cached, since the whole point
+// is an up-to-date number. Hides itself on failure instead of showing a
+// stale or fake value.
+const playerCountBadge = document.getElementById('playerCountBadge');
+const playerCountEl = document.getElementById('playerCount');
+function refreshPlayerCount() {
+  window.hubAPI?.getPlayerCount?.().then((count) => {
+    if (typeof count !== 'number') {
+      playerCountBadge.hidden = true;
+      return;
+    }
+    playerCountEl.textContent = count.toLocaleString();
+    playerCountBadge.hidden = false;
+  });
+}
+
 document.getElementById('refreshBtn').addEventListener('click', () => {
   window.hubAPI.requestRefresh();
+  refreshPlayerCount();
 });
 
 window.hubAPI.onUpdate(render);
 window.hubAPI.requestRefresh();
+refreshPlayerCount();
 
 // Overlay click-through (see overlay-renderer.js / main.js's
 // 'overlay:open-player-detail'). The modal is a backdrop over whatever's
