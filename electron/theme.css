@@ -140,6 +140,12 @@ a:hover {
 .result-loss {
   color: var(--loss);
 }
+/* A 6-6 ranked score (see isRankedFinalScore in rescan.js) is decisive
+   enough to record but is neither a win nor a loss — distinct grey so it
+   doesn't silently read as a loss. */
+.result-tie {
+  color: var(--text-muted);
+}
 
 /* Marks a match recorded without ever seeing a real matchEnded event (see
    rescan.js's inferred-completion path) — deliberately never styled to look

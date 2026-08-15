@@ -30,6 +30,11 @@ export const weaponNames = {
   13: 'Legros',
   14: 'TUB-12',
   15: 'Auto Shotgun',
+  // Confirmed via dp-stats.com's display for the same match (code 16 shown
+  // as "SHORTSHOTGUN" there) and the DamageSource enum in Austen Keeling's
+  // Due-Process-Stat-Parser (AUTOSHOTGUN=15, SHORTSHOTGUN=16, KR82U=17) —
+  // two independent sources agreeing, not a guess.
+  16: 'Short Shotgun',
   17: 'KR82U',
   // Identified from log evidence, not the original community spreadsheet:
   // damage-per-hit landed exactly on Gruber-5's baseDamage (22) across two
@@ -60,6 +65,10 @@ export const weaponMeta = {
   13: { label: 'Legros', category: 'Assault Rifle', fireType: 'Semi', baseDamage: 40, rpm: 260, wikiUrl: 'https://dueprocess.fandom.com/wiki/F1-Legros', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/b/b9/F1_Legros.png' },
   14: { label: 'TUB-12', category: 'Shotgun', fireType: 'Pump', baseDamage: 20, rpm: 60, wikiUrl: 'https://dueprocess.fandom.com/wiki/TUB-12', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/b/bf/Tub.png' },
   15: { label: 'Auto Shotgun', category: 'Shotgun', fireType: 'Auto', baseDamage: 20, rpm: 240, wikiUrl: 'https://dueprocess.fandom.com/wiki/Auto_Shotgun', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/4/47/Autoshotgun.png' },
+  // Category confirmed by name/dp-stats.com; baseDamage/rpm/fireType left
+  // unconfirmed (null/Unknown) rather than guessed — no verified source for
+  // the exact numbers the way there is for the other weapons here.
+  16: { label: 'Short Shotgun', category: 'Shotgun', fireType: 'Unknown', baseDamage: null, rpm: null, wikiUrl: 'https://dueprocess.fandom.com/wiki/Weapons', imageUrl: null },
   17: { label: 'KR82U', category: 'Assault Rifle', fireType: 'Auto', baseDamage: 30, rpm: 540, wikiUrl: 'https://dueprocess.fandom.com/wiki/KR82U', imageUrl: 'https://static.wikia.nocookie.net/dueprocess_gamepedia/images/f/fd/KR82U.png' },
   // Same baseDamage/rpm as Gruber-5 (4) — a suppressor doesn't change
   // damage, only sound/recoil. No dedicated wiki page exists yet, hence

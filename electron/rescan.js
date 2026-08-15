@@ -182,6 +182,13 @@ function recordCompletedMatch(
     timestamp: Date.now(),
     inferred, // true if no matchEnded event was ever seen for this match — see the doc comment above
     won: myScore > oppScore,
+    // A 6-6 ranked score is a real, decisive-enough-to-record outcome (see
+    // isRankedFinalScore below) but it's neither a win nor a loss — won
+    // stays a strict boolean (myScore > oppScore, false here) since that's
+    // correct for win-rate/streak/rating math elsewhere, but callers that
+    // render a result label need this separate flag to show "TIE" instead
+    // of quietly treating a tie as a loss.
+    tied: myScore === oppScore,
     myScore,
     oppScore,
     team0Name,

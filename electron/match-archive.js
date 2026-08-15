@@ -144,7 +144,7 @@ class MatchArchive {
   isLegacyMatch(matchId) {
     const m = this.getMatch(matchId);
     if (!m) return false;
-    if (!m._schemaVersion || m._schemaVersion < 8) return true;
+    if (!m._schemaVersion || m._schemaVersion < 9) return true;
     const rounds = m.mapRounds || m.roundMaps;
     if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
     return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
@@ -174,13 +174,13 @@ class MatchArchive {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);
     if (existingIndex !== -1) {
       if (this.isLegacyMatch(entry.matchId)) {
-        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 8 };
+        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 9 };
         this._save();
       }
       return;
     }
 
-    this.data.matches.push({ ...entry, _schemaVersion: 8 });
+    this.data.matches.push({ ...entry, _schemaVersion: 9 });
     if (this.data.matches.length > MAX_MATCHES) {
       this.data.matches.splice(0, this.data.matches.length - MAX_MATCHES);
     }
@@ -252,8 +252,16 @@ class MatchArchive {
       kills += m.kills;
       deaths += m.deaths;
       assists += m.assists;
-      if (m.won) wins += 1;
-      else losses += 1;
+      // A tie (6-6 ranked, see isRankedFinalScore) is neither a win nor a
+      // loss — excluded from both tallies entirely, not counted as a loss,
+      // so it doesn't silently drag down winRate (and therefore dplRating).
+      // Fallback for records predating the `tied` field: derive it from the
+      // scores that have always been stored.
+      const tied = m.tied ?? m.myScore === m.oppScore;
+      if (!tied) {
+        if (m.won) wins += 1;
+        else losses += 1;
+      }
 
       const myRow = m.teams?.[0]?.find((r) => r.accountId === m.localAccountId) ?? m.teams?.[1]?.find((r) => r.accountId === m.localAccountId);
       if (myRow) {
@@ -300,6 +308,14 @@ class MatchArchive {
     let curWin = 0;
     let curLoss = 0;
     for (const m of this.data.matches) {
+      const tied = m.tied ?? m.myScore === m.oppScore;
+      if (tied) {
+        // Breaks whatever streak was active without itself extending
+        // either — a tie isn't a win, but it isn't a loss either.
+        curWin = 0;
+        curLoss = 0;
+        continue;
+      }
       if (m.won) {
         curWin += 1;
         curLoss = 0;
@@ -324,6 +340,7 @@ class MatchArchive {
         matchId: m.matchId,
         timestamp: m.timestamp,
         won: m.won,
+        tied: m.tied ?? m.myScore === m.oppScore,
         myScore: m.myScore,
         oppScore: m.oppScore,
         team0Name: m.team0Name ?? 'Blue Team',
@@ -458,14 +475,21 @@ class MatchArchive {
           existing.roundsCounted += r.kast?.roundsCounted ?? match.roundCount ?? 0;
           existing.kastRounds += r.kast?.kastRounds ?? 0;
 
-          if (isMyTeam) {
-            existing.matchesTogether += 1;
-            if (match.won) existing.winsTogether += 1;
-            else existing.lossesTogether += 1;
-          } else {
-            existing.matchesAgainst += 1;
-            if (match.won) existing.winsAgainst += 1; // local player won against them
-            else existing.lossesAgainst += 1;
+          // A tie is excluded from these win-rate counters entirely (not
+          // counted as a loss for either side) — same reasoning as
+          // getLifetimeStats' wins/losses tally, so a teammate's/rival's
+          // DPL rating below isn't dragged down by a match nobody lost.
+          const tied = match.tied ?? match.myScore === match.oppScore;
+          if (!tied) {
+            if (isMyTeam) {
+              existing.matchesTogether += 1;
+              if (match.won) existing.winsTogether += 1;
+              else existing.lossesTogether += 1;
+            } else {
+              existing.matchesAgainst += 1;
+              if (match.won) existing.winsAgainst += 1; // local player won against them
+              else existing.lossesAgainst += 1;
+            }
           }
 
           byAccount.set(r.accountId, existing);
@@ -700,7 +724,8 @@ class MatchArchive {
     const header = 'MatchID,Timestamp,Result,MyScore,OppScore,Team0Name,Team1Name,Map,Kills,Deaths,Assists,WeaponBreakdown,Inferred\n';
     const rows = this.data.matches.map((m) => {
       const date = new Date(m.timestamp).toISOString();
-      const res = m.won ? 'WIN' : 'LOSS';
+      const tied = m.tied ?? m.myScore === m.oppScore;
+      const res = tied ? 'TIE' : m.won ? 'WIN' : 'LOSS';
       const map = csvField(m.mapLabel ?? '');
       const team0 = csvField(m.team0Name ?? 'Blue Team');
       const team1 = csvField(m.team1Name ?? 'Orange Team');

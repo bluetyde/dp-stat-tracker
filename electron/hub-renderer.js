@@ -1056,15 +1056,17 @@ function renderMatchRows(tbody, matches, opts = {}) {
     const tr = document.createElement('tr');
     tr.dataset.matchId = m.matchId;
     tr.title = 'Click for the full scoreboard';
-    const resultClass = m.won ? 'result-win' : 'result-loss';
-    const resultText = m.won ? 'WIN' : 'LOSS';
+    const resultClass = m.tied ? 'result-tie' : m.won ? 'result-win' : 'result-loss';
+    const resultText = m.tied ? 'TIE' : m.won ? 'WIN' : 'LOSS';
     const sourceBadge = opts.tagSource
       ? `<span class="source-badge source-badge--${m.source}">${m.source === 'ranked' ? 'RANKED' : 'OTHER'}</span>`
       : '';
+    const myScoreClass = m.tied ? '' : m.won ? '' : 'result-loss';
+    const oppScoreClass = m.tied ? '' : m.won ? 'result-win' : '';
     tr.innerHTML = `
       <td class="${resultClass}" style="letter-spacing:.1em">${resultText}</td>
       <td>${escapeHtml(m.matchup || `${m.team0Name || 'Blue Team'} vs ${m.team1Name || 'Orange Team'}`)}${sourceBadge}</td>
-      <td style="text-align:center"><span class="${m.won ? '' : 'result-loss'}">${m.myScore}</span> – <span class="${m.won ? 'result-win' : ''}">${m.oppScore}</span></td>
+      <td style="text-align:center"><span class="${myScoreClass}">${m.myScore}</span> – <span class="${oppScoreClass}">${m.oppScore}</span></td>
       <td style="text-align:center;white-space:nowrap;font-family:var(--font-display);font-weight:600;min-width:90px">${m.kills} - ${m.deaths} - ${m.assists}</td>
       <td style="text-align:right;font-family:var(--font-body);font-size:11px;color:var(--text-muted);white-space:nowrap">${timeAgo(m.timestamp)}</td>
       <td style="text-align:center"><button class="delete-match-btn" title="Delete this match" aria-label="Delete this match">&times;</button></td>
