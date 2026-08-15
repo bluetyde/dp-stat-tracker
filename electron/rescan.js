@@ -122,6 +122,37 @@ function recordCompletedMatch(
   const mapRoundsDetailed = [];
   const totalRounds = match.roundsByNumber.size;
 
+  // Killfeed lines arrive in real time as a round is played, but that
+  // round's own Stats::Kill/Damage only flush as one batch at its end — see
+  // parser.js's killFeed comment. So killFeed is stored match-wide, not
+  // per-round, and re-associated with the correct round here by tick range
+  // instead of trusting when the parser happened to read the line. A
+  // round's window runs from its own first known tick up to the next
+  // round's first known tick (exclusive), or indefinitely for the last
+  // round — covers the "missed final kill lands just after this round's
+  // own batch" case without needing to assume any fixed offset.
+  const roundTickBounds = new Map();
+  for (let r = 1; r <= totalRounds; r++) {
+    const roundObj = match.roundsByNumber.get(r);
+    if (!roundObj) continue;
+    const ticks = [...roundObj.kills.map((k) => k.tick), ...roundObj.damage.map((d) => d.tick)];
+    if (ticks.length > 0) roundTickBounds.set(r, { min: Math.min(...ticks), max: Math.max(...ticks) });
+  }
+  function killFeedForRound(r) {
+    const bounds = roundTickBounds.get(r);
+    if (!bounds) return [];
+    let nextRoundMin = Infinity;
+    for (let n = r + 1; n <= totalRounds; n++) {
+      const nb = roundTickBounds.get(n);
+      if (nb) {
+        nextRoundMin = nb.min;
+        break;
+      }
+    }
+    return match.killFeed.filter((entry) => entry.tick >= bounds.min && entry.tick < nextRoundMin);
+  }
+  const entityNames = new Map([...match.players.values()].map((p) => [p.entityId, p.name?.toUpperCase()]));
+
   for (let r = 1; r <= totalRounds; r++) {
     const roundObj = match.roundsByNumber.get(r);
     const mapInfo = roundMaps[r - 1] ?? { label: 'Unknown Map', tileset: 'Unknown', mapName: 'Unknown' };
@@ -157,13 +188,49 @@ function recordCompletedMatch(
         const attackDeadIds = new Set(
           (roundObj.kills ?? []).filter((k) => attackBlock.members.some((m) => m.entityId === k.victimId)).map((k) => k.victimId)
         );
+        // Stats::Kill is a batch flushed right before the round-end Team
+        // block — confirmed live that the round's OWN decisive kill can
+        // race that flush and get dropped from it entirely, even though the
+        // real-time killfeed (which isn't batched) still recorded it. Left
+        // uncaught, that reads as a fake "survivor" and misclassifies an
+        // elimination as a save. Cross-reference by name (killfeed has no
+        // entityId) for any attacker death Stats::Kill missed.
+        const attackNamesById = new Map(attackBlock.members.map((m) => [m.entityId, m.name?.toUpperCase()]));
+        for (const entry of killFeedForRound(r)) {
+          if (entry.isEnvironmentKill) continue;
+          for (const [entityId, name] of attackNamesById) {
+            if (name && name === entry.victimName?.toUpperCase()) attackDeadIds.add(entityId);
+          }
+        }
         const attackSurvivors = attackBlock.members.length - attackDeadIds.size;
         roundResult = attackSurvivors > 0 ? 'save' : 'elimination';
       }
     }
 
+    // Local player's own kill count for this specific round — only reliable
+    // now that the round-ending kill (the one that can go missing from
+    // Stats::Kill entirely, see the killFeedForRound cross-reference above)
+    // is checked here too, not just for the attacking side's survivors.
+    // De-duplicated by victim name rather than id, since killfeed lines
+    // don't carry entityId — safe within one round, since nobody respawns
+    // to be killed twice.
+    const myKillVictimNames = new Set(
+      (roundObj?.kills ?? [])
+        .filter((k) => k.attackerId === me.entityId && k.attackerSide !== k.victimSide)
+        .map((k) => entityNames.get(k.victimId))
+    );
+    for (const entry of killFeedForRound(r)) {
+      if (entry.isEnvironmentKill) continue;
+      const victimUpper = entry.victimName?.toUpperCase();
+      if (entry.killerName?.toUpperCase() === me.name?.toUpperCase() && victimUpper && !myKillVictimNames.has(victimUpper)) {
+        myKillVictimNames.add(victimUpper);
+      }
+    }
+    const myKills = myKillVictimNames.size;
+
     mapRoundsDetailed.push({
       round: r,
+      myKills,
       mapLabel: mapInfo.label,
       tileset: mapInfo.tileset ?? 'Unknown',
       mapName: mapInfo.mapName ?? mapInfo.label,

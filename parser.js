@@ -76,7 +76,6 @@ function newRound(number, mapLabel = null) {
     teamBlocks: { 0: null, 1: null },
     kills: [],
     damage: [],
-    killFeed: [],
   };
 }
 
@@ -92,6 +91,9 @@ function newMatch() {
     team1Name: null,
     players: new Map(), // accountId -> { accountId, name, entityId, rosterSide, iconUrl }
     roundsByNumber: new Map(), // roundNumber -> round
+    // Match-level, not per-round — see the killfeed-handling comment below
+    // for why a round can't be determined at push time.
+    killFeed: [],
   };
 }
 
@@ -229,7 +231,18 @@ export class DueProcessLogParser {
       const m = KILLFEED_RE.exec(line);
       if (m) {
         const [, , killerName, verb, , victimName, tick] = m;
-        this._latestRound().killFeed.push({
+        // Match-level, not per-round: killfeed lines arrive in real time as
+        // a round is played, but Stats::Kill/Damage/Team for that same
+        // round only flush as a single batch at the round's own end — so
+        // "whichever round is currently open" while a killfeed line is
+        // being read is actually still the PREVIOUS round for virtually the
+        // entire live duration of the round the line really belongs to.
+        // Confirmed live: round N's killfeed bucket, filed this way, held
+        // round (N+1)'s real events. Callers instead match a killfeed
+        // entry to a round by its own tick falling inside that round's
+        // Stats::Kill/Damage tick range (see rescan.js) — the one thing
+        // that's actually correct regardless of how mis-timed the write is.
+        this.current.killFeed.push({
           killerName,
           verb,
           victimName,
@@ -261,16 +274,6 @@ export class DueProcessLogParser {
     const rounds = this.current.roundsByNumber;
     if (!rounds.has(number)) rounds.set(number, newRound(number, this._pendingMapLabel));
     return rounds.get(number);
-  }
-
-  // Kill-feed lines don't carry a round number, so file them under whichever
-  // round is currently open (the highest round number seen so far).
-  _latestRound() {
-    const rounds = this.current.roundsByNumber;
-    if (rounds.size === 0) return this._round(1);
-    let max = -Infinity;
-    for (const n of rounds.keys()) if (n > max) max = n;
-    return rounds.get(max);
   }
 
   _handleTeamBlock(side, line) {

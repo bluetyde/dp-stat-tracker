@@ -470,6 +470,21 @@ mapHistoryBackdrop?.addEventListener('click', (e) => {
   if (e.target === mapHistoryBackdrop) mapHistoryBackdrop.hidden = true;
 });
 
+// Click the Map Layout History thumbnail to view it full-size.
+const mapPictureLightboxBackdrop = document.getElementById('mapPictureLightboxBackdrop');
+const mapPictureLightboxImg = document.getElementById('mapPictureLightboxImg');
+mhLayoutPicture?.addEventListener('click', () => {
+  if (mhLayoutPicture.hidden || !mhLayoutPicture.src) return;
+  mapPictureLightboxImg.src = mhLayoutPicture.src;
+  mapPictureLightboxBackdrop.hidden = false;
+});
+mapPictureLightboxBackdrop?.addEventListener('click', () => {
+  mapPictureLightboxBackdrop.hidden = true;
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !mapPictureLightboxBackdrop.hidden) mapPictureLightboxBackdrop.hidden = true;
+});
+
 // Map layout screenshot: preview/confirm popup pushed from main.js's
 // captureMapScreenshot() (MAP_SCREENSHOT_HOTKEY), plus a small toast for the
 // non-actionable notices (already captured, no map detected, capture failed).
@@ -1233,6 +1248,7 @@ async function openMatchDetail(matchId) {
       let mapName = null;
       let isWon = match.won;
       let roundResult = null;
+      let myKills = null;
 
       if (typeof r === 'string') {
         const tm = /^\[([^\]]+)\]/.exec(r);
@@ -1243,6 +1259,7 @@ async function openMatchDetail(matchId) {
         if (r.mapName && r.mapName !== 'Unknown') mapName = r.mapName;
         if (typeof r.won === 'boolean') isWon = r.won;
         roundResult = r.roundResult ?? null;
+        myKills = typeof r.myKills === 'number' ? r.myKills : null;
       }
 
       const tilesetClean = tileset ? tileset.replace(/_Day$/i, '') : null;
@@ -1268,7 +1285,29 @@ async function openMatchDetail(matchId) {
         : `<span style="font-size:10px;font-weight:700">${tilesetClean ? escapeHtml(tilesetClean.slice(0, 2)) : '?'}</span>`;
 
       card.innerHTML = iconHtml;
-      matchDetailMapContainer.appendChild(card);
+
+      // Your own kill count for this round, shown as small reticle marks
+      // above the card — only reliable now that the round-ending kill
+      // (previously sometimes missing from Stats::Kill entirely, same gap
+      // roundResult above corrects for) is cross-referenced against the
+      // real-time killfeed too. Older archive records without myKills
+      // (recorded before this field existed) just show no marks rather
+      // than a guess.
+      const column = document.createElement('div');
+      column.className = 'round-column';
+      const marksRow = document.createElement('div');
+      marksRow.className = 'round-kill-marks';
+      if (myKills !== null && myKills > 0) {
+        marksRow.title = `${myKills} kill${myKills === 1 ? '' : 's'} this round`;
+        for (let k = 0; k < myKills; k++) {
+          const mark = document.createElement('span');
+          mark.className = 'round-kill-mark';
+          marksRow.appendChild(mark);
+        }
+      }
+      column.appendChild(marksRow);
+      column.appendChild(card);
+      matchDetailMapContainer.appendChild(column);
     }
   }
 
