@@ -5,10 +5,35 @@ It tails the game's own Unity log files to track kills, deaths, assists,
 match results, and career stats, entirely from data the game already writes
 to disk — no game files are modified.
 
-- **Overlay** — an always-on-top scoreboard shown while you play.
-- **Hub** — a separate window for browsing match history, career totals,
-  top weapons, and per-match detail, split into ranked and other (unranked,
-  2v2, Push, etc.) archives.
+- **Overlay** — an always-on-top scoreboard shown while you play, with
+  DMG/ADR/K-D-A/KAST/HS%/team-damage per player and a live win-probability
+  prediction based on each player's DPL rating.
+- **Hub** — a separate window with:
+  - **Home** — career totals, top weapons, recent-match sparkline, and a
+    live "X playing now" count pulled from Steam's own player-count API.
+  - **Ranked / Other History** — full match lists, split into ranked
+    (best-of-12) and everything else (unranked, 2v2, Push, etc.), each with
+    CSV export.
+  - **Match Detail** — full per-round breakdown: which map each round was
+    on, a side-switch divider and a separate map-change divider (both
+    derived from the round's own data, not assumed from round number, so
+    they hold for non-ranked formats too), and a distinct shape for rounds
+    decided by a save (survived a lost round without dying or defusing) vs.
+    a clean elimination or defuse.
+  - **Weapons** — lifetime kills/headshots/kills-per-round per weapon,
+    filterable by category.
+  - **Played With** — teammates and rivals across your match history, with
+    win rate as teammate vs. as opponent.
+  - **Maps** — win rate per map and per tileset, attack-side vs.
+    defense-side win rate (map-agnostic — counts both sides of every round
+    you played, not just your own role), notes/tags per map, and a
+    one-time-per-layout reference picture you capture with a hotkey
+    (`Control+Shift+M`) that then shows automatically on every future round
+    that reuses that layout.
+- **Stat accuracy** — KAST, assist thresholds, trade windows, and
+  best-weapon selection (percent-of-max-health scoring, not just raw
+  damage) are cross-verified against community reference implementations
+  rather than guessed — see Acknowledgments below.
 
 ## Setup
 
