@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <title>Due Process Overlay</title>
+<!-- Mirrors hub.html's early apply — the overlay has no toggle of its own,
+     but must reflect whatever the Hub last set (see theme:changed) rather
+     than always booting dark. See preload.js's synchronous 'theme:get-sync'. -->
+<script>document.documentElement.setAttribute('data-theme', window.themeAPI.getInitial());</script>
 <link rel="stylesheet" href="theme.css" />
 <style>
   html, body {
@@ -17,10 +21,10 @@
   #card {
     position: relative;
     width: 100%;
-    background: rgba(9, 12, 15, 0.88);
+    background: rgba(var(--card-rgb), 0.88);
     backdrop-filter: blur(6px);
-    border: 1px solid rgba(127, 182, 232, 0.28);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(var(--accent-rgb), 0.28);
+    box-shadow: 0 24px 60px rgba(var(--shadow-rgb), 0.55);
     font-size: 13px;
   }
   #card > .corner {
@@ -41,8 +45,8 @@
     justify-content: space-between;
     gap: 20px;
     padding: 9px 16px;
-    border-bottom: 1px solid rgba(127, 182, 232, 0.2);
-    background: rgba(127, 182, 232, 0.05);
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
+    background: rgba(var(--accent-rgb), 0.05);
   }
   #dragHeader .title {
     font-family: var(--font-display);
@@ -56,13 +60,13 @@
     font-size: 11px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #7d8b99;
+    color: var(--text-dim);
   }
   #dragHeader .hint {
     font-size: 10px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #556472;
+    color: var(--text-faint);
   }
 
   #footer {
@@ -70,17 +74,17 @@
     align-items: center;
     justify-content: center;
     padding: 6px 16px;
-    border-top: 1px solid rgba(127, 182, 232, 0.2);
+    border-top: 1px solid rgba(var(--accent-rgb), 0.2);
     font-size: 10px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #66757f;
+    color: var(--text-muted);
   }
   #empty {
     padding: 40px 20px;
     text-align: center;
     font-size: 13px;
-    color: #7d8b99;
+    color: var(--text-dim);
   }
 </style>
 </head>

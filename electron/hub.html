@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <title>Due Process Tracker</title>
+<!-- Runs before theme.css is parsed/applied, so the very first paint
+     already carries the persisted theme instead of flashing dark (the
+     bare :root default) then swapping to light a frame later. See
+     preload.js's synchronous 'theme:get-sync' read. -->
+<script>document.documentElement.setAttribute('data-theme', window.themeAPI.getInitial());</script>
 <link rel="stylesheet" href="theme.css" />
 <style>
   body {
@@ -15,7 +20,7 @@
 
   aside {
     border-right: 1px solid var(--border-soft);
-    background: #0a0d10;
+    background: var(--bg-sunken);
     display: flex;
     flex-direction: column;
     gap: 28px;
@@ -48,25 +53,25 @@
     gap: 12px;
     padding: 11px 22px;
     border-left: 2px solid transparent;
-    color: #8b98a5;
+    color: var(--text-dim);
     font-family: var(--font-display);
     font-size: 15px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     cursor: pointer;
   }
-  .nav-item:hover { color: var(--text); background: rgba(255, 255, 255, 0.03); }
+  .nav-item:hover { color: var(--text); background: rgba(var(--tint-rgb), 0.03); }
   .nav-item .nav-dot {
     width: 6px;
     height: 6px;
     display: block;
-    border: 1px solid #48545f;
+    border: 1px solid var(--text-faint);
     background: transparent;
   }
   .nav-item.active {
     border-left-color: var(--accent);
-    background: rgba(127, 182, 232, 0.09);
-    color: #eaf2fa;
+    background: rgba(var(--accent-rgb), 0.09);
+    color: var(--text-bright);
   }
   .nav-item.active .nav-dot { background: var(--accent); border-color: var(--accent); }
   .log-source {
@@ -105,7 +110,7 @@
   #refreshBtn {
     background: var(--accent);
     border: 1px solid var(--accent);
-    color: #0d1013;
+    color: var(--on-accent);
     font-family: var(--font-display);
     font-size: 14px;
     letter-spacing: 0.16em;
@@ -140,14 +145,14 @@
     font-weight: 600;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: #cfd9e2;
+    color: var(--text);
   }
 
   .weapon-row { display: flex; flex-direction: column; gap: 6px; }
   .weapon-row .top { display: flex; justify-content: space-between; align-items: baseline; }
-  .weapon-row .wname { font-family: var(--font-display); font-size: 17px; letter-spacing: 0.1em; text-transform: uppercase; color: #eaf0f6; }
+  .weapon-row .wname { font-family: var(--font-display); font-size: 17px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-bright); }
   .weapon-row .wkills { font-family: var(--font-display); font-size: 17px; color: var(--accent); }
-  .weapon-bar { height: 3px; background: #1a2128; }
+  .weapon-bar { height: 3px; background: var(--border); }
   .weapon-bar > span { display: block; height: 3px; background: var(--accent); }
 
   #sparkline { display: flex; gap: 3px; align-items: flex-end; height: 44px; }
@@ -158,7 +163,7 @@
   .empty-state { padding: 60px 20px; text-align: center; color: var(--text-muted); }
 
   table.rows tbody tr { cursor: pointer; }
-  table.rows tbody tr:hover { background: rgba(127, 182, 232, 0.06); }
+  table.rows tbody tr:hover { background: rgba(var(--accent-rgb), 0.06); }
 
   /* Weapons tab — header cells double as sort buttons (see hub-renderer.js's
      sortWeapons()); rows aren't clickable the way match rows are, so no
@@ -223,7 +228,7 @@
     height: 32px;
     border-radius: 7px;
     border: 2px solid var(--border);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--tint-rgb), 0.03);
     padding: 2px;
     box-sizing: border-box;
     cursor: pointer;
@@ -241,18 +246,18 @@
     z-index: 5;
   }
   .match-map-card--win {
-    border-color: #7ebce8;
-    background: rgba(126, 188, 232, 0.22);
-    box-shadow: 0 0 10px rgba(126, 188, 232, 0.4);
+    border-color: var(--win-vivid);
+    background: rgba(var(--win-vivid-rgb), 0.22);
+    box-shadow: 0 0 10px rgba(var(--win-vivid-rgb), 0.4);
   }
   .match-map-card--loss {
-    border-color: #f45b69;
-    background: rgba(244, 91, 105, 0.22);
-    box-shadow: 0 0 10px rgba(244, 91, 105, 0.4);
+    border-color: var(--loss-vivid);
+    background: rgba(var(--loss-vivid-rgb), 0.22);
+    box-shadow: 0 0 10px rgba(var(--loss-vivid-rgb), 0.4);
   }
   .match-map-card--tie {
-    border-color: rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(var(--tint-rgb), 0.25);
+    background: rgba(var(--tint-rgb), 0.08);
   }
   /* Save round — the attacking side had a survivor when a non-defuse round
      ended, so it wasn't decided by a wipe or a defuse. 12-point star via
@@ -272,10 +277,10 @@
     transform: scale(1.15);
   }
   .match-map-card--win .match-map-card__icon {
-    filter: sepia(100%) hue-rotate(170deg) saturate(350%) brightness(1.2) drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    filter: sepia(100%) hue-rotate(170deg) saturate(350%) brightness(1.2) drop-shadow(0 1px 2px rgba(var(--shadow-rgb), 0.6));
   }
   .match-map-card--loss .match-map-card__icon {
-    filter: sepia(100%) hue-rotate(310deg) saturate(450%) brightness(1.1) drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    filter: sepia(100%) hue-rotate(310deg) saturate(450%) brightness(1.1) drop-shadow(0 1px 2px rgba(var(--shadow-rgb), 0.6));
   }
   .match-map-card__icon {
     width: 24px;
@@ -289,7 +294,7 @@
     width: 2px;
     height: 26px;
     margin: 0 4px;
-    border-left: 2px dotted rgba(255, 255, 255, 0.35);
+    border-left: 2px dotted rgba(var(--tint-rgb), 0.35);
     display: inline-block;
     vertical-align: middle;
   }
@@ -300,7 +305,7 @@
     width: 3px;
     height: 26px;
     margin: 0 4px;
-    border-left: 3px solid rgba(127, 182, 232, 0.55);
+    border-left: 3px solid rgba(var(--accent-rgb), 0.55);
     display: inline-block;
     vertical-align: middle;
   }
@@ -326,18 +331,18 @@
     text-transform: uppercase;
   }
   .role-badge--attack {
-    color: #f4848d;
-    background: rgba(244, 91, 105, 0.12);
-    border: 1px solid rgba(244, 91, 105, 0.3);
+    color: var(--role-attack);
+    background: rgba(var(--loss-vivid-rgb), 0.12);
+    border: 1px solid rgba(var(--loss-vivid-rgb), 0.3);
   }
   .role-badge--defense {
-    color: #84c0f4;
-    background: rgba(132, 192, 244, 0.12);
-    border: 1px solid rgba(132, 192, 244, 0.3);
+    color: var(--role-defense);
+    background: rgba(var(--role-defense-rgb), 0.12);
+    border: 1px solid rgba(var(--role-defense-rgb), 0.3);
   }
   .role-badge--unknown {
     color: var(--text-faint);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--tint-rgb), 0.03);
     border: 1px solid var(--border-soft);
   }
 
@@ -368,7 +373,7 @@
      hub-renderer.js's tag click handler). */
   .cat-pill,
   .map-tag-pill {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--tint-rgb), 0.03);
     border: 1px solid var(--border-soft);
     color: var(--text-muted);
     font-family: var(--font-display);
@@ -391,11 +396,11 @@
   .map-tag-pill:hover {
     color: var(--text-bright);
     border-color: var(--accent-dim);
-    background: rgba(127, 182, 232, 0.06);
+    background: rgba(var(--accent-rgb), 0.06);
   }
   .cat-pill.active,
   .map-tag-pill.active {
-    background: rgba(127, 182, 232, 0.14);
+    background: rgba(var(--accent-rgb), 0.14);
     border-color: var(--accent);
     color: var(--text-bright);
   }
@@ -406,7 +411,7 @@
     margin-top: 6px;
   }
   .weapon-search-box input {
-    background: #090c0f;
+    background: var(--bg-input);
     border: 1px solid var(--border);
     color: var(--text-bright);
     font-family: var(--font-body);
@@ -454,7 +459,7 @@
   .kills-bar {
     width: 60px;
     height: 3px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--tint-rgb), 0.05);
     border-radius: 1px;
     overflow: hidden;
   }
@@ -471,14 +476,14 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     border-radius: 2px;
-    background: rgba(127, 182, 232, 0.1);
+    background: rgba(var(--accent-rgb), 0.1);
     color: var(--accent);
-    border: 1px solid rgba(127, 182, 232, 0.25);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
   }
 
   /* Live Match & Prediction styles */
   .prediction-card {
-    background: rgba(15, 20, 24, 0.95);
+    background: rgba(var(--card-rgb), 0.95);
     border: 1px solid var(--border);
     padding: 20px 24px;
     display: flex;
@@ -493,14 +498,14 @@
   }
   .prediction-bar-container {
     height: 12px;
-    background: #e28a42;
+    background: var(--rival);
     border-radius: 2px;
     overflow: hidden;
     display: flex;
   }
   .prediction-bar-team0 {
     height: 100%;
-    background: #579cd8;
+    background: var(--team0);
     transition: width 0.3s ease;
   }
   .rating-badge {
@@ -511,9 +516,9 @@
     font-weight: 700;
     letter-spacing: 0.06em;
     border-radius: 2px;
-    background: rgba(127, 182, 232, 0.12);
+    background: rgba(var(--accent-rgb), 0.12);
     color: var(--accent-bright);
-    border: 1px solid rgba(127, 182, 232, 0.25);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
   }
   .played-with-tag {
     display: inline-block;
@@ -523,20 +528,20 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     border-radius: 2px;
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(var(--tint-rgb), 0.04);
     color: var(--text-muted);
     border: 1px solid var(--border-soft);
     margin-left: 6px;
   }
   .played-with-tag--teammate {
     color: var(--accent);
-    border-color: rgba(127, 182, 232, 0.3);
-    background: rgba(127, 182, 232, 0.08);
+    border-color: rgba(var(--accent-rgb), 0.3);
+    background: rgba(var(--accent-rgb), 0.08);
   }
   .played-with-tag--rival {
-    color: #e28a42;
-    border-color: rgba(226, 138, 66, 0.3);
-    background: rgba(226, 138, 66, 0.08);
+    color: var(--rival);
+    border-color: rgba(var(--rival-rgb), 0.3);
+    background: rgba(var(--rival-rgb), 0.08);
   }
   .player-name-link {
     cursor: pointer;
@@ -551,7 +556,7 @@
   #playerDetailBackdrop, #mapHistoryBackdrop, #mapScreenshotPreviewBackdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 9, 0.75);
+    background: rgba(var(--backdrop-rgb), 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -565,7 +570,7 @@
     width: 100%;
     max-height: 60vh;
     object-fit: contain;
-    background: #000;
+    background: #000; /* letterboxing behind a captured screenshot — deliberately theme-invariant */
     border: 1px solid var(--border-soft);
     border-radius: 4px;
   }
@@ -573,7 +578,7 @@
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: rgba(9, 12, 15, 0.97);
+    background: rgba(var(--card-rgb), 0.97);
     border: 1px solid var(--accent-dim);
     color: var(--text-bright);
     padding: 12px 18px;
@@ -581,7 +586,7 @@
     font-family: var(--font-body);
     font-size: 13px;
     z-index: 30;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.5);
     transition: opacity 0.3s ease;
   }
   #mapScreenshotToast[hidden] {
@@ -606,7 +611,7 @@
   .export-btn:hover {
     color: var(--text-bright);
     border-color: var(--accent);
-    background: rgba(127, 182, 232, 0.06);
+    background: rgba(var(--accent-rgb), 0.06);
   }
 
   .delete-match-btn {
@@ -619,7 +624,7 @@
     cursor: pointer;
     border-radius: 2px;
   }
-  .delete-match-btn:hover { border-color: var(--loss); color: var(--loss); background: rgba(209, 86, 94, 0.1); }
+  .delete-match-btn:hover { border-color: var(--loss); color: var(--loss); background: rgba(var(--loss-rgb), 0.1); }
 
   /* Tags a row on Home's unified feed as coming from the ranked or other
      archive — same visual pattern as theme.css's .inferred-badge, own
@@ -657,7 +662,7 @@
   #matchDetailBackdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 9, 0.72);
+    background: rgba(var(--backdrop-rgb), 0.72);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -698,9 +703,9 @@
     max-height: 96vh;
     overflow-y: auto;
     overflow-x: hidden; /* belt-and-suspenders: with the grid fix above, columns should never need to scroll horizontally at all */
-    background: rgba(9, 12, 15, 0.97);
-    border: 1px solid rgba(127, 182, 232, 0.28);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    background: rgba(var(--card-rgb), 0.97);
+    border: 1px solid rgba(var(--accent-rgb), 0.28);
+    box-shadow: 0 24px 60px rgba(var(--shadow-rgb), 0.55);
   }
   #matchDetailHeader {
     display: flex;
@@ -708,8 +713,8 @@
     justify-content: space-between;
     gap: 20px;
     padding: 16px 26px;
-    border-bottom: 1px solid rgba(127, 182, 232, 0.2);
-    background: rgba(127, 182, 232, 0.05);
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
+    background: rgba(var(--accent-rgb), 0.05);
   }
   #matchDetailHeader .title {
     font-family: var(--font-display);
@@ -723,12 +728,12 @@
     font-size: 14px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: #7d8b99;
+    color: var(--text-dim);
   }
   #matchDetailClose {
     background: none;
-    border: 1px solid #2b353f;
-    color: #9aa7b4;
+    border: 1px solid var(--border-soft);
+    color: var(--text-dim);
     font-family: var(--font-display);
     font-size: 13px;
     letter-spacing: 0.14em;
@@ -739,8 +744,8 @@
   #matchDetailClose:hover { border-color: var(--accent); color: var(--text); }
   #matchDetailDelete {
     background: none;
-    border: 1px solid #4a2c30;
-    color: #d1565e;
+    border: 1px solid rgba(var(--loss-rgb), 0.35);
+    color: var(--loss);
     font-family: var(--font-display);
     font-size: 13px;
     letter-spacing: 0.14em;
@@ -748,7 +753,7 @@
     padding: 6px 14px;
     cursor: pointer;
   }
-  #matchDetailDelete:hover { border-color: var(--loss); background: rgba(209, 86, 94, 0.12); }
+  #matchDetailDelete:hover { border-color: var(--loss); background: rgba(var(--loss-rgb), 0.12); }
 </style>
 </head>
 <body>
@@ -756,7 +761,7 @@
     <div class="brand">
       <div class="name">Due<span class="accent">Process</span></div>
       <div class="ver" id="appVersionLabel">Tracker</div>
-      <div id="playerCountBadge" hidden style="margin-top:8px;text-align:center;font-family:var(--font-display);font-size:14px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);background:rgba(127,182,232,0.1);border:1px solid rgba(127,182,232,0.25);border-radius:3px;padding:7px 10px"><span id="playerCount">—</span> PLAYING NOW</div>
+      <div id="playerCountBadge" hidden style="margin-top:8px;text-align:center;font-family:var(--font-display);font-size:14px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);background:rgba(var(--accent-rgb), 0.1);border:1px solid rgba(var(--accent-rgb), 0.25);border-radius:3px;padding:7px 10px"><span id="playerCount">—</span> PLAYING NOW</div>
     </div>
     <nav>
       <div class="nav-item active" data-view="home"><span class="nav-dot"></span>Home</div>
@@ -767,6 +772,13 @@
       <div class="nav-item" data-view="playedWith"><span class="nav-dot"></span>Played With</div>
       <div class="nav-item" data-view="maps"><span class="nav-dot"></span>Maps</div>
     </nav>
+    <div style="padding:0 22px;display:flex;flex-direction:column;gap:10px">
+      <div class="kicker">Theme</div>
+      <div class="category-filters" id="themeToggle">
+        <button class="cat-pill" data-theme-choice="dark">Dark</button>
+        <button class="cat-pill" data-theme-choice="light">Light</button>
+      </div>
+    </div>
     <div class="log-source">
       <div class="kicker">Log source</div>
       <div class="panel" style="padding:12px">
@@ -783,7 +795,7 @@
       <div>
         <div class="kicker">Career overview</div>
         <div style="display:flex;align-items:center;gap:14px">
-          <img id="playerAvatar" src="" alt="" hidden style="width:56px;height:56px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,0.05);border:1px solid var(--border-soft)" />
+          <img id="playerAvatar" src="" alt="" hidden style="width:56px;height:56px;border-radius:6px;object-fit:cover;background:rgba(var(--tint-rgb), 0.05);border:1px solid var(--border-soft)" />
           <div>
             <h1 id="playerName">—</h1>
             <div style="margin-top:4px">
@@ -995,12 +1007,12 @@
             </div>
             <div style="display:flex;gap:24px;align-items:center">
               <div style="text-align:right">
-                <div class="kicker" style="color:#579cd8">BLUE AVG RATING</div>
-                <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:#579cd8" id="blueAvgRating">1.00</div>
+                <div class="kicker" style="color:var(--team0)">BLUE AVG RATING</div>
+                <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--team0)" id="blueAvgRating">1.00</div>
               </div>
               <div style="text-align:right">
-                <div class="kicker" style="color:#e28a42">ORANGE AVG RATING</div>
-                <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:#e28a42" id="orangeAvgRating">1.00</div>
+                <div class="kicker" style="color:var(--rival)">ORANGE AVG RATING</div>
+                <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--rival)" id="orangeAvgRating">1.00</div>
               </div>
             </div>
           </div>
@@ -1034,14 +1046,14 @@
           </div>
           <div class="stat-tile">
             <div class="stat-label">Top Duo Teammate</div>
-            <img id="pwTopTeammateAvatar" src="" alt="" hidden style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,0.05);border:1px solid var(--border-soft);margin-top:6px" />
+            <img id="pwTopTeammateAvatar" src="" alt="" hidden style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:rgba(var(--tint-rgb), 0.05);border:1px solid var(--border-soft);margin-top:6px" />
             <div class="stat-value" id="pwTopTeammate" style="font-size:18px;color:var(--accent-bright);margin-top:4px">—</div>
             <div class="stat-sub" id="pwTopTeammateSub">0 games</div>
           </div>
           <div class="stat-tile">
             <div class="stat-label">Top Rival</div>
-            <img id="pwTopRivalAvatar" src="" alt="" hidden style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,0.05);border:1px solid var(--border-soft);margin-top:6px" />
-            <div class="stat-value" id="pwTopRival" style="font-size:18px;color:#e28a42;margin-top:4px">—</div>
+            <img id="pwTopRivalAvatar" src="" alt="" hidden style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:rgba(var(--tint-rgb), 0.05);border:1px solid var(--border-soft);margin-top:6px" />
+            <div class="stat-value" id="pwTopRival" style="font-size:18px;color:var(--rival);margin-top:4px">—</div>
             <div class="stat-sub" id="pwTopRivalSub">0 games</div>
           </div>
           <div class="stat-tile">
@@ -1059,7 +1071,7 @@
             <button class="cat-pill" data-pwcat="rivals">Rivals</button>
           </div>
           <div style="flex:1;max-width:280px">
-            <input type="text" id="playedWithSearchInput" placeholder="Search player name or Steam ID..." style="width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--border);color:var(--text);font-family:var(--font-body);font-size:13px;padding:7px 12px;outline:none">
+            <input type="text" id="playedWithSearchInput" placeholder="Search player name or Steam ID..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);font-family:var(--font-body);font-size:13px;padding:7px 12px;outline:none">
           </div>
         </div>
 
@@ -1109,7 +1121,7 @@
             <button class="cat-pill" data-mapcat="Killhouse">Killhouse</button>
           </div>
           <div class="pw-search-box" style="margin-left:auto">
-            <input type="text" id="mapSearchInput" class="pw-search-input" placeholder="Search map layout..." style="width:220px;padding:6px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border-soft);color:var(--text-bright);border-radius:4px;font-family:var(--font-body);font-size:13px" />
+            <input type="text" id="mapSearchInput" class="pw-search-input" placeholder="Search map layout..." style="width:220px;padding:6px 12px;background:var(--bg-input);border:1px solid var(--border-soft);color:var(--text-bright);border-radius:4px;font-family:var(--font-body);font-size:13px" />
           </div>
         </div>
 
@@ -1137,7 +1149,7 @@
       <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
       <header style="display:flex;justify-content:space-between;align-items:flex-start">
         <div style="display:flex;align-items:center;gap:16px">
-          <img id="pdAvatar" src="" alt="Avatar" style="width:48px;height:48px;border-radius:6px;border:1px solid var(--accent);object-fit:cover;background:rgba(0,0,0,0.4)" hidden />
+          <img id="pdAvatar" src="" alt="Avatar" style="width:48px;height:48px;border-radius:6px;border:1px solid var(--accent);object-fit:cover;background:rgba(var(--tint-rgb), 0.05)" hidden />
           <div>
             <div class="kicker">Player quick reference</div>
             <h2 id="pdName" style="margin:4px 0 0;font-family:var(--font-display);font-size:28px;text-transform:uppercase;color:var(--text-bright)">—</h2>
@@ -1145,8 +1157,8 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button id="pdSteamBtn" style="background:var(--accent);border:none;color:#0d1013;font-family:var(--font-display);font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;letter-spacing:0.06em">STEAM PROFILE ↗</button>
-          <button id="pdCloseBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:6px 12px;cursor:pointer">CLOSE</button>
+          <button id="pdSteamBtn" style="background:var(--accent);border:none;color:var(--on-accent);font-family:var(--font-display);font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;letter-spacing:0.06em">STEAM PROFILE ↗</button>
+          <button id="pdCloseBtn" style="background:none;border:1px solid var(--border-soft);color:var(--text-dim);font-family:var(--font-display);font-size:13px;padding:6px 12px;cursor:pointer">CLOSE</button>
         </div>
       </header>
 
@@ -1177,7 +1189,7 @@
           </div>
           <div>
             <div style="font-size:12px;color:var(--text-muted)" id="pdOpponentLabel">As Opponent</div>
-            <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:#e28a42" id="pdOpponentText">0g · 0% WR</div>
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--rival)" id="pdOpponentText">0g · 0% WR</div>
           </div>
         </div>
       </div>
@@ -1189,14 +1201,14 @@
       <span class="corner tl">+</span><span class="corner tr">+</span><span class="corner bl">+</span><span class="corner br">+</span>
       <header style="display:flex;justify-content:space-between;align-items:flex-start">
         <div style="display:flex;gap:14px;align-items:flex-start">
-          <img id="mhLayoutPicture" src="" alt="" hidden style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border-soft);background:rgba(0,0,0,0.3);flex-shrink:0;cursor:zoom-in" title="Click to enlarge" />
+          <img id="mhLayoutPicture" src="" alt="" hidden style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border-soft);background:rgba(var(--tint-rgb), 0.05);flex-shrink:0;cursor:zoom-in" title="Click to enlarge" />
           <div>
             <div class="kicker">Map layout history</div>
             <h2 id="mhMapTitle" style="margin:4px 0 0;font-family:var(--font-display);font-size:26px;text-transform:uppercase;color:var(--text-bright)">—</h2>
             <div id="mhTilesetBadge" class="source-badge source-badge--ranked" style="margin-top:6px"></div>
           </div>
         </div>
-        <button id="mhCloseBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:6px 14px;cursor:pointer">CLOSE</button>
+        <button id="mhCloseBtn" style="background:none;border:1px solid var(--border-soft);color:var(--text-dim);font-family:var(--font-display);font-size:13px;padding:6px 14px;cursor:pointer">CLOSE</button>
       </header>
 
       <div class="panel" style="padding:16px;max-height:360px;overflow-y:auto">
@@ -1242,17 +1254,17 @@
       </header>
       <img id="mapScreenshotPreviewImg" src="" alt="Captured map layout" />
       <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button id="mapScreenshotCancelBtn" style="background:none;border:1px solid #2b353f;color:#9aa7b4;font-family:var(--font-display);font-size:13px;padding:8px 16px;cursor:pointer">CANCEL</button>
+        <button id="mapScreenshotCancelBtn" style="background:none;border:1px solid var(--border-soft);color:var(--text-dim);font-family:var(--font-display);font-size:13px;padding:8px 16px;cursor:pointer">CANCEL</button>
         <button id="mapScreenshotRetryBtn" style="background:none;border:1px solid var(--border-soft);color:var(--text);font-family:var(--font-display);font-size:13px;padding:8px 16px;cursor:pointer">RETRY</button>
-        <button id="mapScreenshotSaveBtn" style="background:var(--accent);border:1px solid var(--accent);color:#0d1013;font-family:var(--font-display);font-weight:700;font-size:13px;padding:8px 16px;cursor:pointer">SAVE</button>
+        <button id="mapScreenshotSaveBtn" style="background:var(--accent);border:1px solid var(--accent);color:var(--on-accent);font-family:var(--font-display);font-weight:700;font-size:13px;padding:8px 16px;cursor:pointer">SAVE</button>
       </div>
     </section>
   </div>
 
   <div id="mapScreenshotToast" hidden></div>
 
-  <div id="mapPictureLightboxBackdrop" hidden style="position:fixed;inset:0;background:rgba(5,7,9,0.9);display:flex;align-items:center;justify-content:center;padding:40px;z-index:40;cursor:zoom-out">
-    <img id="mapPictureLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;object-fit:contain;border:1px solid var(--border-soft);border-radius:4px;box-shadow:0 24px 60px rgba(0,0,0,0.6)" />
+  <div id="mapPictureLightboxBackdrop" hidden style="position:fixed;inset:0;background:rgba(var(--backdrop-rgb), 0.9);display:flex;align-items:center;justify-content:center;padding:40px;z-index:40;cursor:zoom-out">
+    <img id="mapPictureLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;object-fit:contain;border:1px solid var(--border-soft);border-radius:4px;box-shadow:0 24px 60px rgba(var(--shadow-rgb), 0.6)" />
   </div>
   <style>
     #mapPictureLightboxBackdrop[hidden] { display: none !important; }

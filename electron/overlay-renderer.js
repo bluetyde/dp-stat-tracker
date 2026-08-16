@@ -41,6 +41,14 @@ function render(data) {
 
 window.overlayAPI.onUpdate(render);
 
+// The Hub owns the only toggle UI; this window just stays in sync with
+// whatever it last set (see main.js's 'theme:set' broadcast). Initial value
+// is already applied by the inline <script> in <head>, before this file
+// even loads — this only handles a LATER change while the overlay is open.
+window.themeAPI.onChange((theme) => {
+  document.documentElement.setAttribute('data-theme', theme);
+});
+
 // Player click-through to the Hub's Player Quick Reference modal. Delegated
 // on the container (attached once) rather than per-row like hub-renderer.js's
 // attachPlayerClickHandlers, since render() above rebuilds `.player-row`

@@ -15,6 +15,40 @@ const topWeaponsEl = document.getElementById('topWeapons');
 const sparklineEl = document.getElementById('sparkline');
 const sparklineAvgEl = document.getElementById('sparklineAvg');
 
+// ---------------------------------------------------------------------
+// Theme toggle — data-theme on <html> is already applied by the inline
+// <script> in hub.html's <head> (before theme.css is even parsed, to avoid
+// a flash of the wrong palette). This just keeps the sidebar buttons'
+// .active state in sync and wires clicks through to main.js, which
+// persists the choice and pushes it to the overlay window too (see
+// theme-store.js / preload.js's themeAPI) — plain localStorage wouldn't
+// reach the overlay's separate renderer process.
+// ---------------------------------------------------------------------
+
+const themeToggleButtons = [...document.querySelectorAll('#themeToggle [data-theme-choice]')];
+
+function applyThemeButtonState(theme) {
+  for (const btn of themeToggleButtons) {
+    btn.classList.toggle('active', btn.dataset.themeChoice === theme);
+  }
+}
+
+applyThemeButtonState(window.themeAPI.getInitial());
+
+for (const btn of themeToggleButtons) {
+  btn.addEventListener('click', () => {
+    const theme = btn.dataset.themeChoice;
+    document.documentElement.setAttribute('data-theme', theme);
+    applyThemeButtonState(theme);
+    window.themeAPI.set(theme);
+  });
+}
+
+window.themeAPI.onChange((theme) => {
+  document.documentElement.setAttribute('data-theme', theme);
+  applyThemeButtonState(theme);
+});
+
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -674,7 +708,7 @@ function renderPlayedWithTable() {
       <td style="text-align:center"><span class="source-badge ${badgeClass}">${badgeText}</span></td>
       <td style="text-align:center;color:var(--accent);font-weight:600">${p.matchesTogether > 0 ? `${p.winsTogether}W - ${p.lossesTogether}L` : '—'}</td>
       <td style="text-align:center;font-weight:600">${p.matchesTogether > 0 ? `${p.winRateTogether}%` : '—'}</td>
-      <td style="text-align:center;color:#e28a42;font-weight:600">${p.matchesAgainst > 0 ? `${p.winsAgainst}W - ${p.lossesAgainst}L` : '—'}</td>
+      <td style="text-align:center;color:var(--rival);font-weight:600">${p.matchesAgainst > 0 ? `${p.winsAgainst}W - ${p.lossesAgainst}L` : '—'}</td>
       <td style="text-align:center;font-weight:600">${p.matchesAgainst > 0 ? `${p.winRateAgainst}%` : '—'}</td>
       <td style="text-align:center;font-family:var(--font-display);font-weight:700;color:var(--accent-bright)">${p.dplRating.toFixed(2)}</td>
       <td style="text-align:right">
@@ -1389,7 +1423,7 @@ function renderSparkline(trend) {
     const bar = document.createElement('span');
     const heightPct = Math.max(6, Math.round((kills / max) * 100));
     bar.style.height = `${heightPct}%`;
-    bar.style.background = kills >= avg ? 'var(--accent)' : '#2b353f';
+    bar.style.background = kills >= avg ? 'var(--accent)' : 'var(--border-soft)';
     sparklineEl.appendChild(bar);
   }
   sparklineAvgEl.textContent = `avg ${(Math.round(avg * 10) / 10).toFixed(1)}`;

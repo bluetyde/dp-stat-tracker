@@ -7,24 +7,153 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600&display=swap');
 
+/* Dark is the default palette (bare :root, no attribute needed) — this is
+   the original, only theme the app ever had, so it stays the fallback if
+   [data-theme] is ever absent (JS failure, first paint before preload
+   applies it, etc). The light palette lives entirely in the
+   :root[data-theme="light"] override block below; every rule in this file
+   after :root reads a --* variable rather than a literal color specifically
+   so that block is the ONLY other place a theme value needs to change. See
+   main.js's theme-store.js and preload.js's synchronous 'theme:get-sync' —
+   both windows apply [data-theme] before their first paint. */
 :root {
   --bg: #0d1013;
   --bg-raised: #0f1418;
   --bg-tile: #12171c;
+  --bg-sunken: #0a0d10;
+  --bg-input: #090c0f;
   --border: #1e262d;
   --border-soft: #232c34;
   --text: #e4eaf0;
   --text-bright: #f2f6fa;
   --text-muted: #6d7b88;
   --text-faint: #5d6b78;
+  /* The single most-reused ad-hoc gray in the app before this pass (dim
+     numeric/meta text — KAST/ADR columns, nav items, header meta) — lighter
+     and more visible than --text-muted, its own token because six-plus
+     call sites already agreed on this exact value independently. */
+  --text-dim: #9aa7b4;
+
   --accent: #7fb6e8;
   --accent-bright: #a9d0f4;
   --accent-dim: #4e6d8c;
+  --accent-rgb: 127, 182, 232;
+  /* Text/icon color for content sitting ON TOP of an --accent- or
+     --loss-filled surface (buttons, team badges) — needs to flip opposite
+     the surface it's drawn on, not track --text. */
+  --on-accent: #0d1013;
+
   --loss: #d1565e;
   --loss-bright: #f0b7bb;
+  --loss-rgb: 209, 86, 94;
+  /* More saturated red than --loss, used for the win/loss glow treatment on
+     Match Detail's per-round map cards and the attack role badge — kept
+     distinct from --loss rather than merged into it since the source design
+     used two deliberately different reds for "loss text" vs "loss glow". */
+  --loss-vivid: #f45b69;
+  --loss-vivid-rgb: 244, 91, 105;
+
+  /* Match Detail's per-round map card win glow — a near-twin of --accent in
+     the original design (not a typo left in place), kept as its own token
+     so the two can be tuned independently if the win-glow ever needs more
+     punch than body-text accent. */
+  --win-vivid: #7ebce8;
+  --win-vivid-rgb: 126, 188, 232;
+
+  /* "Orange team" / rival-relationship color — Played With rival tags, the
+     Live Match prediction card's second team, Weapons' "most died to" tile. */
+  --rival: #e28a42;
+  --rival-rgb: 226, 138, 66;
+  /* "Blue team" identity color for the Live Match prediction card — paired
+     with --rival the same way team-head.team-0/.team-1 are already paired
+     with --accent/--loss, but this is its own distinct blue rather than a
+     reuse of --accent (matches the source design). */
+  --team0: #579cd8;
+
+  --role-attack: #f4848d;
+  --role-attack-rgb: 244, 132, 141;
+  --role-defense: #84c0f4;
+  --role-defense-rgb: 132, 192, 244;
+
+  /* Inferred-match badge only. */
+  --warn: #d1a33f;
+
+  /* Countless hover/border/divider effects in this UI are literal
+     rgba(255,255,255, X) "white tint" overlays laid on a dark background —
+     rgba(var(--tint-rgb), X) everywhere instead lets ONE variable flip
+     re-tint all of them at once in light mode instead of hunting down each
+     rgba() call individually. */
+  --tint-rgb: 255, 255, 255;
+
+  /* Modal scrim behind Match Detail / Player Detail / Map History. */
+  --backdrop-rgb: 5, 7, 9;
+  /* Elevated translucent surfaces — Match Detail card, prediction card,
+     screenshot toast — one shade lighter than --bg-raised so they read as
+     "floating" above the page behind the scrim. */
+  --card-rgb: 9, 12, 15;
+  /* box-shadow tint — kept black-based in both themes; opacity alone does
+     the work of reading as a shadow rather than a colored glow. */
+  --shadow-rgb: 0, 0, 0;
 
   --font-display: 'Barlow Condensed', system-ui, sans-serif;
   --font-body: 'Barlow', system-ui, sans-serif;
+}
+
+/* Light palette — deliberately NOT a mechanical inversion of the dark
+   values. --accent/--loss/--rival/--role-* are all darkened and
+   re-saturated versions of their dark-mode hex (rather than reused as-is)
+   specifically for contrast against a light --bg: the dark palette's pastel
+   blues/reds were chosen to pop against near-black and read poorly on
+   white, especially at this UI's many 10-13px label sizes. */
+:root[data-theme="light"] {
+  --bg: #f3f5f7;
+  --bg-raised: #ffffff;
+  --bg-tile: #eef1f4;
+  --bg-sunken: #e3e7eb;
+  --bg-input: #ffffff;
+  --border: #d7dde3;
+  --border-soft: #c7cfd7;
+  --text: #1b232a;
+  --text-bright: #05080b;
+  --text-muted: #5b6672;
+  --text-faint: #7c8792;
+  --text-dim: #4a5560;
+
+  --accent: #1f5f9e;
+  --accent-bright: #123d66;
+  --accent-dim: #6f93b4;
+  --accent-rgb: 31, 95, 158;
+  --on-accent: #f5f8fb;
+
+  --loss: #b23545;
+  --loss-bright: #7a2029;
+  --loss-rgb: 178, 53, 69;
+  --loss-vivid: #d43449;
+  --loss-vivid-rgb: 212, 52, 73;
+
+  --win-vivid: #1f5f9e;
+  --win-vivid-rgb: 31, 95, 158;
+
+  --rival: #a8611c;
+  --rival-rgb: 168, 97, 28;
+  --team0: #1f5f9e;
+
+  --role-attack: #b23545;
+  --role-attack-rgb: 178, 53, 69;
+  --role-defense: #1f5f9e;
+  --role-defense-rgb: 31, 95, 158;
+
+  --warn: #8a6410;
+
+  /* Dark tint instead of white — same overlay effect, opposite direction. */
+  --tint-rgb: 10, 14, 18;
+
+  /* Medium-gray instead of near-black, so the modal scrim still reads as a
+     dimming layer over a light page rather than an almost-invisible one
+     (too light) or a jarring black one (too dark). */
+  --backdrop-rgb: 60, 68, 76;
+  --card-rgb: 255, 255, 255;
+  --shadow-rgb: 0, 0, 0;
 }
 
 * {
@@ -47,7 +176,7 @@ a:hover {
 }
 
 ::selection {
-  background: rgba(127, 182, 232, 0.28);
+  background: rgba(var(--accent-rgb), 0.28);
 }
 
 .kicker {
@@ -158,8 +287,8 @@ a:hover {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: #d1a33f;
-  border: 1px solid #d1a33f;
+  color: var(--warn);
+  border: 1px solid var(--warn);
   border-radius: 2px;
   vertical-align: middle;
   cursor: help;
@@ -183,14 +312,14 @@ a:hover {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 .team-col:first-child {
-  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  border-right: 1px solid rgba(var(--tint-rgb), 0.07);
 }
 .team-head {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(var(--tint-rgb), 0.07);
 }
 .team-head .badge {
   min-width: 28px;
@@ -200,10 +329,10 @@ a:hover {
   font-weight: 700;
   line-height: 1;
   padding: 4px 6px;
-  color: #0d1013;
+  color: var(--on-accent);
 }
-.team-head.team-0 { background: rgba(127, 182, 232, 0.1); }
-.team-head.team-1 { background: rgba(209, 86, 94, 0.1); }
+.team-head.team-0 { background: rgba(var(--accent-rgb), 0.1); }
+.team-head.team-1 { background: rgba(var(--loss-rgb), 0.1); }
 .team-head.team-0 .badge { background: var(--accent); }
 .team-head.team-1 .badge { background: var(--loss); }
 .team-head .team-label {
@@ -212,8 +341,8 @@ a:hover {
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
-.team-head.team-0 .team-label { color: #bcd9f3; }
-.team-head.team-1 .team-label { color: #f0b7bb; }
+.team-head.team-0 .team-label { color: var(--accent-bright); }
+.team-head.team-1 .team-label { color: var(--loss-bright); }
 
 .player-row, .col-head-row {
   display: grid;
@@ -221,14 +350,14 @@ a:hover {
   gap: 7px;
   padding: 11px 16px;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(var(--tint-rgb), 0.05);
 }
 .col-head-row {
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #66757f;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(var(--tint-rgb), 0.07);
 }
 .player-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* .name is a flex row, not plain text directly: hub-renderer.js's
@@ -281,9 +410,9 @@ a:hover {
 .player-row.is-you .name { color: var(--accent); }
 .num { text-align: right; font-family: var(--font-display); font-size: 15px; color: var(--text); }
 .ctr { text-align: center; font-family: var(--font-display); font-size: 15px; color: var(--text); }
-.dim { color: #9aa7b4; }
-.ff-alert { color: #e28a42; font-weight: 600; text-align: right; font-family: var(--font-display); font-size: 15px; }
-.wpn { text-align: right; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa7b4; }
+.dim { color: var(--text-dim); }
+.ff-alert { color: var(--rival); font-weight: 600; text-align: right; font-family: var(--font-display); font-size: 15px; }
+.wpn { text-align: right; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
 
 table.rows {
   width: 100%;
@@ -301,7 +430,7 @@ table.rows th {
 }
 table.rows td {
   padding: 8px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(var(--tint-rgb), 0.05);
   font-family: var(--font-display);
   font-size: 17px;
   color: var(--text);

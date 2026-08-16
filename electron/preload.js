@@ -5,6 +5,25 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Read synchronously, once, at preload time — before either window's <head>
+// has parsed far enough to apply theme.css — so the page's very first paint
+// can already carry the right data-theme attribute instead of flashing the
+// wrong palette on every launch. See theme-store.js and main.js's
+// 'theme:get-sync' handler.
+const initialTheme = ipcRenderer.sendSync('theme:get-sync');
+
+contextBridge.exposeInMainWorld('themeAPI', {
+  getInitial: () => initialTheme,
+  // Pushed by main.js to BOTH windows whenever either one changes the
+  // theme, so the overlay and Hub never disagree (they're separate
+  // BrowserWindows/renderer processes — plain localStorage wouldn't sync
+  // between them, hence going through main.js at all instead).
+  onChange: (callback) => {
+    ipcRenderer.on('theme:changed', (_event, theme) => callback(theme));
+  },
+  set: (theme) => ipcRenderer.send('theme:set', theme),
+});
+
 contextBridge.exposeInMainWorld('overlayAPI', {
   onUpdate: (callback) => {
     ipcRenderer.on('overlay:update', (_event, payload) => callback(payload));

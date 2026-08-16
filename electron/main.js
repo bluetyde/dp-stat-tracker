@@ -20,6 +20,7 @@ const { MatchArchive } = require('./match-archive');
 const { findLocalAccountId } = require('./local-player');
 const { MapTracker } = require('./map-tracker');
 const { MapLayoutLibrary } = require('./map-layout-library');
+const { ThemeStore, DEFAULT_THEME } = require('./theme-store');
 const { recordCompletedMatch, scanLogFileForCompletedMatches } = require('./rescan');
 
 let overlayWindow = null;
@@ -27,6 +28,7 @@ let hubWindow = null;
 let rankedArchive = null; // match-archive.json — ranked (7-X / 6-6) matches, the ONLY source for career totals
 let otherArchive = null; // other-matches-archive.json — everything else (unranked, 2v2, Push, ...), never counted toward totals
 let mapLayoutLibrary = null;
+let themeStore = null; // theme.json — 'dark' | 'light', shared by both windows (see theme-store.js)
 // Holds the just-captured (not yet saved) picture between the hotkey press
 // and the user confirming it in the Hub's preview popup — see
 // captureMapScreenshot() and the hub:map-screenshot-confirm/retry handlers.
@@ -89,6 +91,10 @@ function createOverlayWindow() {
 }
 
 function createHubWindow() {
+  // Matches the current theme's --bg so the window's own background (visible
+  // for a frame before hub.html finishes loading) doesn't flash the wrong
+  // color under the light palette.
+  const bg = themeStore && themeStore.get() === 'light' ? '#f3f5f7' : '#0d1013';
   hubWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -96,7 +102,7 @@ function createHubWindow() {
     minHeight: 640,
     alwaysOnTop: false,
     title: 'Due Process Tracker',
-    backgroundColor: '#0d1013',
+    backgroundColor: bg,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -636,6 +642,29 @@ ipcMain.on('hub:request-refresh', () => {
   sendHubUpdate();
 });
 
+// Synchronous on purpose: read by preload.js's top-of-file (module-load-time)
+// code, before either window's <head> has parsed far enough to apply
+// theme.css — so the very first paint already carries the right
+// [data-theme] attribute instead of flashing dark-then-light (or vice
+// versa) on every launch. themeStore is assigned in main() before either
+// window is created, so it's always populated by the time a renderer can
+// possibly ask.
+ipcMain.on('theme:get-sync', (event) => {
+  event.returnValue = themeStore ? themeStore.get() : DEFAULT_THEME;
+});
+
+// Fire-and-forget: persists the choice and pushes it to both windows so
+// neither one silently keeps the old theme. Broadcasting back to the
+// sender too (rather than special-casing it) keeps this simple — the
+// sender's own listener just re-applies the same value it already set
+// optimistically.
+ipcMain.on('theme:set', (_event, theme) => {
+  const applied = themeStore.set(theme);
+  for (const win of [overlayWindow, hubWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send('theme:changed', applied);
+  }
+});
+
 // Match-detail view (click-through from either list) reads straight from
 // whichever archive actually has it — works even after the source log has
 // rotated away, since the full scoreboard was persisted at record time.
@@ -818,6 +847,7 @@ async function main() {
   rankedArchive = new MatchArchive(path.join(userDataDir, 'match-archive.json'));
   otherArchive = new MatchArchive(path.join(userDataDir, 'other-matches-archive.json'));
   mapLayoutLibrary = new MapLayoutLibrary(path.join(userDataDir, 'map-layouts'));
+  themeStore = new ThemeStore(path.join(userDataDir, 'theme.json'));
   localAccountId = rankedArchive.getLocalAccountId() || otherArchive.getLocalAccountId();
 
   createOverlayWindow();
