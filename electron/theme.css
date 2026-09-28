@@ -275,6 +275,9 @@ a:hover {
 .result-tie {
   color: var(--text-muted);
 }
+.result-spectate {
+  color: #a78bfa;
+}
 
 /* Marks a match recorded without ever seeing a real matchEnded event (see
    rescan.js's inferred-completion path) — deliberately never styled to look

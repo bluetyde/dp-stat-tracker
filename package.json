@@ -9,7 +9,8 @@
   "scripts": {
     "start": "electron .",
     "web": "node server.js",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "test": "node test/test_round_features.js && node test/test_spectator_matches.js && node test/test_kill_timestamps.js && node test/test_split_match_merging.js && node test/test_pit_tracker.js && node test/test_global_database.js"
   },
   "devDependencies": {
     "electron": "^43.4.0",

@@ -157,9 +157,13 @@ class MatchArchive {
   isLegacyMatch(matchId) {
     const m = this.getMatch(matchId);
     if (!m) return false;
-    if (!m._schemaVersion || m._schemaVersion < 11) return true;
+    if (!m._schemaVersion || m._schemaVersion < 12) return true;
     const rounds = m.mapRounds || m.roundMaps;
     if (!rounds || !Array.isArray(rounds) || rounds.length < (m.roundCount ?? 1) || typeof rounds[0] === 'string' || !m.team0Name) return true;
+    if (rounds.some((r) => r && typeof r === 'object' && r.kills === undefined)) return true;
+    if (rounds.some((r) => r && typeof r === 'object' && Array.isArray(r.kills) && r.kills.length > 0 && r.kills[0].seconds === 0 && r.kills[0].tick > 1000)) return true;
+    if (m.isSpectator) return false;
+    if (m.roundCount && m.finalScore && m.roundCount < ((m.finalScore.side0 ?? 0) + (m.finalScore.side1 ?? 0))) return true;
     return (m.weaponBreakdown ?? []).some((w) => w.roundsUsed === undefined || w.deaths === undefined || w.headshots === undefined);
   }
 
@@ -183,17 +187,23 @@ class MatchArchive {
    * overwritten with the freshly computed `entry` (see isLegacyMatch's doc
    * comment).
    */
-  recordMatch(entry) {
+  recordMatch(entry, { force = false } = {}) {
     const existingIndex = this.data.matches.findIndex((m) => m.matchId === entry.matchId);
     if (existingIndex !== -1) {
-      if (this.isLegacyMatch(entry.matchId)) {
-        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 11 };
+      const existing = this.data.matches[existingIndex];
+      const shouldUpdate =
+        force ||
+        this.isLegacyMatch(entry.matchId) ||
+        (existing.inferred && !entry.inferred) ||
+        ((entry.roundCount ?? 0) > (existing.roundCount ?? 0));
+      if (shouldUpdate) {
+        this.data.matches[existingIndex] = { ...entry, _schemaVersion: 12 };
         this._save();
       }
       return;
     }
 
-    this.data.matches.push({ ...entry, _schemaVersion: 11 });
+    this.data.matches.push({ ...entry, _schemaVersion: 12 });
     if (this.data.matches.length > MAX_MATCHES) {
       this.data.matches.splice(0, this.data.matches.length - MAX_MATCHES);
     }
@@ -291,7 +301,10 @@ class MatchArchive {
     let damage = 0;
     let roundsCounted = 0;
     let kastRounds = 0;
+    let matchesRecorded = 0;
     for (const m of this.data.matches) {
+      if (m.isSpectator) continue;
+      matchesRecorded += 1;
       kills += m.kills;
       deaths += m.deaths;
       assists += m.assists;
@@ -313,7 +326,6 @@ class MatchArchive {
         kastRounds += myRow.kast?.kastRounds ?? 0;
       }
     }
-    const matchesRecorded = this.data.matches.length;
     const kdr = deaths > 0 ? kills / deaths : kills;
     const totalDecided = wins + losses;
     const winRate = totalDecided > 0 ? (wins / totalDecided) * 100 : 0;
@@ -351,6 +363,7 @@ class MatchArchive {
     let curWin = 0;
     let curLoss = 0;
     for (const m of this.data.matches) {
+      if (m.isSpectator) continue;
       const tied = m.tied ?? m.myScore === m.oppScore;
       if (tied) {
         // Breaks whatever streak was active without itself extending
@@ -383,12 +396,14 @@ class MatchArchive {
         const is2v2 = m.is2v2 !== undefined
           ? Boolean(m.is2v2)
           : Boolean(typeof m.mapLabel === 'string' && /(?:^|\W)2v2(?:$|\W)/i.test(m.mapLabel));
+        const isSpectator = Boolean(m.isSpectator);
         return {
           matchId: m.matchId,
           timestamp: m.timestamp,
           won: m.won,
           tied: m.tied ?? m.myScore === m.oppScore,
           is2v2,
+          isSpectator,
           myScore: m.myScore,
           oppScore: m.oppScore,
           team0Name: m.team0Name ?? 'Blue Team',
@@ -400,7 +415,7 @@ class MatchArchive {
           deaths: m.deaths,
           assists: m.assists,
           inferred: m.inferred,
-          tags: Array.isArray(m.tags) ? m.tags : (is2v2 ? ['2v2'] : (this.filePath && this.filePath.includes('other') ? ['Casual'] : ['Ranked'])),
+          tags: Array.isArray(m.tags) ? m.tags : (isSpectator ? ['Spectated'] : (is2v2 ? ['2v2'] : (this.filePath && this.filePath.includes('other') ? ['Casual'] : ['Ranked']))),
           modeOverride: m.modeOverride ?? null,
         };
       });
@@ -414,6 +429,7 @@ class MatchArchive {
   getWeaponStats() {
     const byCode = new Map();
     for (const match of this.data.matches) {
+      if (match.isSpectator) continue;
       for (const w of match.weaponBreakdown ?? []) {
         const meta = WEAPON_META[w.damageSource] ?? { label: w.label, category: w.category ?? 'Other', fireType: w.fireType ?? 'Unknown', baseDamage: w.baseDamage ?? null, rpm: w.rpm ?? null };
         const label = meta.label ?? w.label;
@@ -489,6 +505,7 @@ class MatchArchive {
   getTopWeapons(limit = 4) {
     const byCode = new Map();
     for (const match of this.data.matches) {
+      if (match.isSpectator) continue;
       for (const w of match.weaponBreakdown ?? []) {
         if (w.hits === 0 && w.kills === 0) continue;
         const existing = byCode.get(w.damageSource) ?? {
@@ -507,7 +524,7 @@ class MatchArchive {
 
   /** Kills for the last `limit` matches, oldest first (for a trend sparkline). */
   getRecentKillsTrend(limit = 12) {
-    return this.data.matches.slice(-limit).map((m) => m.kills);
+    return this.data.matches.filter((m) => !m.isSpectator).slice(-limit).map((m) => m.kills);
   }
 
   /**
@@ -519,7 +536,7 @@ class MatchArchive {
     const byAccount = new Map();
 
     for (const match of this.data.matches) {
-      if (!match.teams) continue;
+      if (match.isSpectator || !match.teams) continue;
 
       // Determine local player's side in this match
       let mySide = null;
@@ -673,6 +690,7 @@ class MatchArchive {
     };
 
     for (const match of this.data.matches) {
+      if (match.isSpectator && isSelf) continue;
       if (!match.teams) continue;
 
       let playerRow = null;
@@ -942,6 +960,7 @@ class MatchArchive {
     const mapTags = this.data.mapTags || {};
 
     for (const match of this.data.matches) {
+      if (match.isSpectator) continue;
       const team0 = match.team0Name || 'Blue Team';
       const team1 = match.team1Name || 'Orange Team';
       const matchup = `${team0} vs ${team1}`;
@@ -1091,7 +1110,7 @@ class MatchArchive {
     const rows = this.data.matches.map((m) => {
       const date = new Date(m.timestamp).toISOString();
       const tied = m.tied ?? m.myScore === m.oppScore;
-      const res = tied ? 'TIE' : m.won ? 'WIN' : 'LOSS';
+      const res = m.isSpectator ? 'SPEC' : (tied ? 'TIE' : m.won ? 'WIN' : 'LOSS');
       const map = csvField(m.mapLabel ?? '');
       const team0 = csvField(m.team0Name ?? 'Blue Team');
       const team1 = csvField(m.team1Name ?? 'Orange Team');
@@ -1099,9 +1118,105 @@ class MatchArchive {
         .filter((w) => w.hits > 0 || w.kills > 0)
         .map((w) => `${w.label}:${w.hits}/${w.kills}`)
         .join(';');
-      return `${m.matchId},${date},${res},${m.myScore},${m.oppScore},${team0},${team1},${map},${m.kills},${m.deaths},${m.assists},${csvField(weapons)},${m.inferred ? 'TRUE' : 'FALSE'}`;
+      const kills = m.isSpectator ? '' : m.kills;
+      const deaths = m.isSpectator ? '' : m.deaths;
+      const assists = m.isSpectator ? '' : m.assists;
+      return `${m.matchId},${date},${res},${m.myScore},${m.oppScore},${team0},${team1},${map},${kills},${deaths},${assists},${csvField(weapons)},${m.inferred ? 'TRUE' : 'FALSE'}`;
     });
     return header + rows.join('\n');
+  }
+
+  /**
+   * Aggregate environmental hazard deaths caused by the Pit ("PIT ROASTED <player>")
+   * across all matches in this archive.
+   */
+  getPitStats(localPlayerName) {
+    let totalDeaths = 0;
+    let selfDeaths = 0;
+    const victimCounts = new Map();
+    const claims = [];
+
+    const localUpper = localPlayerName ? localPlayerName.toUpperCase() : null;
+    const localId = this.getLocalAccountId();
+
+    for (const match of this.data.matches) {
+      if (!Array.isArray(match.mapRounds)) continue;
+      const matchMapLabel = match.mapLabel || 'Unknown Map';
+      match.mapRounds.forEach((mr, idx) => {
+        if (!Array.isArray(mr.kills)) return;
+        const roundNum = mr.round ?? mr.roundNumber ?? (idx + 1);
+        for (const k of mr.kills) {
+          const killerUpper = (k.killerName || '').toUpperCase();
+          const weaponUpper = (k.weapon || '').toUpperCase();
+          const isPit = Boolean(
+            k.isPit ||
+            killerUpper === 'PIT' ||
+            killerUpper.includes('PIT') ||
+            weaponUpper === 'ROASTED' ||
+            weaponUpper === 'PIT'
+          );
+          if (!isPit) continue;
+
+          totalDeaths += 1;
+          const victim = k.victimName || 'Unknown';
+          const victimUpper = victim.toUpperCase();
+          const existing = victimCounts.get(victimUpper);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            victimCounts.set(victimUpper, {
+              name: victim,
+              count: 1,
+            });
+          }
+
+          let isSelf = localUpper ? (victimUpper === localUpper) : false;
+          if (!isSelf && localId && Array.isArray(match.teams)) {
+            const myRow = match.teams[0]?.find((r) => r.accountId === localId) ?? match.teams[1]?.find((r) => r.accountId === localId);
+            if (myRow && myRow.name && myRow.name.toUpperCase() === victimUpper) {
+              isSelf = true;
+            }
+          }
+          if (isSelf) {
+            selfDeaths += 1;
+          }
+
+          const seconds = typeof k.seconds === 'number' ? k.seconds : 0;
+          const timeFormatted = k.timeFormatted || `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+          const is2v2 = match.is2v2 !== undefined
+            ? Boolean(match.is2v2)
+            : Boolean(typeof match.mapLabel === 'string' && /(?:^|\W)2v2(?:$|\W)/i.test(match.mapLabel));
+          const isSpectator = Boolean(match.isSpectator);
+          const mode = match.modeOverride || (isSpectator ? 'Spectator' : (is2v2 ? '2v2' : (this.filePath && this.filePath.includes('other') ? 'Casual' : 'Ranked')));
+
+          claims.push({
+            matchId: match.matchId,
+            timestamp: match.timestamp,
+            roundNumber: roundNum,
+            victimName: victim,
+            victimSide: k.victimSide,
+            isSelf,
+            timeFormatted,
+            mapLabel: mr.mapLabel || matchMapLabel,
+            mapName: mr.mapName || 'Unknown',
+            tileset: mr.tileset || 'Unknown',
+            mode,
+          });
+        }
+      });
+    }
+
+    const victims = [...victimCounts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    claims.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    return {
+      totalDeaths,
+      selfDeaths,
+      otherDeaths: totalDeaths - selfDeaths,
+      topVictim: victims[0] || null,
+      victims,
+      claims,
+    };
   }
 }
 
@@ -1141,4 +1256,320 @@ function computeDplRating({ kills, deaths, assists = 0, damage, roundsCounted, k
   return Math.round(baseCombat * winImpact * 100) / 100;
 }
 
-module.exports = { MatchArchive };
+function isRankedFinalScore(myScore, oppScore) {
+  if (myScore === 6 && oppScore === 6) return true;
+  if (myScore === 7 && oppScore <= 6) return true;
+  if (oppScore === 7 && myScore <= 6) return true;
+  return false;
+}
+
+function mergeWeaponBreakdowns(wb1 = [], wb2 = []) {
+  const map = new Map();
+  for (const w of wb1 || []) {
+    const key = w.damageSource !== undefined ? w.damageSource : w.label;
+    map.set(key, { ...w });
+  }
+  for (const w of wb2 || []) {
+    const key = w.damageSource !== undefined ? w.damageSource : w.label;
+    if (!map.has(key)) {
+      map.set(key, { ...w });
+    } else {
+      const cur = map.get(key);
+      cur.hits = (cur.hits || 0) + (w.hits || 0);
+      cur.damage = (cur.damage || 0) + (w.damage || 0);
+      cur.kills = (cur.kills || 0) + (w.kills || 0);
+      cur.deaths = (cur.deaths || 0) + (w.deaths || 0);
+      if (typeof w.headshots === 'number') cur.headshots = (cur.headshots || 0) + w.headshots;
+      if (typeof w.roundsUsed === 'number') cur.roundsUsed = (cur.roundsUsed || 0) + w.roundsUsed;
+      if (typeof w.healthPercentScore === 'number') cur.healthPercentScore = (cur.healthPercentScore || 0) + w.healthPercentScore;
+    }
+  }
+  return [...map.values()];
+}
+
+function mergeTeams(teams1 = {}, teams2 = {}) {
+  const mergedTeams = { 0: [], 1: [] };
+  for (const side of [0, 1]) {
+    const list1 = teams1[side] || [];
+    const list2 = teams2[side] || [];
+    const playerMap = new Map();
+    const getPlayerKey = (p) => p.accountId || p.name || '';
+    for (const p of list1) {
+      const key = getPlayerKey(p);
+      playerMap.set(key, { ...p, weaponBreakdown: [...(p.weaponBreakdown || [])] });
+    }
+    for (const p of list2) {
+      const key = getPlayerKey(p);
+      if (!playerMap.has(key)) {
+        playerMap.set(key, { ...p, weaponBreakdown: [...(p.weaponBreakdown || [])] });
+      } else {
+        const existing = playerMap.get(key);
+        existing.kills = (existing.kills || 0) + (p.kills || 0);
+        existing.deaths = (existing.deaths || 0) + (p.deaths || 0);
+        existing.assists = (existing.assists || 0) + (p.assists || 0);
+        existing.damage = (existing.damage || 0) + (p.damage || 0);
+        existing.attackDamage = (existing.attackDamage || 0) + (p.attackDamage || 0);
+        existing.defenseDamage = (existing.defenseDamage || 0) + (p.defenseDamage || 0);
+        existing.attackRounds = (existing.attackRounds || 0) + (p.attackRounds || 0);
+        existing.defenseRounds = (existing.defenseRounds || 0) + (p.defenseRounds || 0);
+        existing.roundsCounted = (existing.roundsCounted || 0) + (p.roundsCounted || 0);
+        existing.kastRounds = (existing.kastRounds || 0) + (p.kastRounds || 0);
+        existing.openingWon = (existing.openingWon || 0) + (p.openingWon || 0);
+        existing.openingInvolved = (existing.openingInvolved || 0) + (p.openingInvolved || 0);
+        existing.teamDamage = (existing.teamDamage || 0) + (p.teamDamage || 0);
+
+        existing.adr = existing.roundsCounted > 0 ? Number((existing.damage / existing.roundsCounted).toFixed(1)) : 0;
+        existing.kdr = existing.deaths > 0 ? Number((existing.kills / existing.deaths).toFixed(2)) : Number((existing.kills || 0).toFixed(2));
+        existing.kast = existing.roundsCounted > 0 ? Number(((existing.kastRounds / existing.roundsCounted) * 100).toFixed(1)) : 0;
+        existing.weaponBreakdown = mergeWeaponBreakdowns(existing.weaponBreakdown, p.weaponBreakdown);
+      }
+    }
+    mergedTeams[side] = [...playerMap.values()];
+  }
+  return mergedTeams;
+}
+
+function mergeMapRounds(olderRounds = [], newerRounds = []) {
+  if (!olderRounds.length) return newerRounds;
+  if (!newerRounds.length) return olderRounds;
+
+  const olderMax = Math.max(...olderRounds.map((r) => r.round || 0));
+  const newerMin = Math.min(...newerRounds.map((r) => r.round || 0));
+
+  let adjustedNewer = newerRounds;
+  if (newerMin <= olderMax && olderRounds.length > 0) {
+    const isSameFirstRound =
+      newerRounds[0]?.mapLabel === olderRounds[0]?.mapLabel &&
+      (newerRounds[0]?.kills?.length === olderRounds[0]?.kills?.length);
+    if (!isSameFirstRound) {
+      adjustedNewer = newerRounds.map((r, idx) => ({
+        ...r,
+        round: olderRounds.length + idx + 1,
+      }));
+    }
+  }
+
+  const byRound = new Map();
+  for (const r of olderRounds) byRound.set(r.round, r);
+  for (const r of adjustedNewer) {
+    const existing = byRound.get(r.round);
+    if (!existing || (Array.isArray(r.kills) && r.kills.length > (existing.kills?.length || 0)) || !existing.sideRole) {
+      byRound.set(r.round, r);
+    }
+  }
+
+  return [...byRound.values()].sort((a, b) => a.round - b.round);
+}
+
+function mergeArchivedMatches(entry1, entry2) {
+  if (!entry1) return entry2;
+  if (!entry2) return entry1;
+
+  let older = entry1;
+  let newer = entry2;
+
+  if (entry1.timestamp > entry2.timestamp) {
+    older = entry2;
+    newer = entry1;
+  }
+
+  const completing = (!newer.inferred && entry1 !== entry2) ? newer : (!older.inferred ? older : newer);
+  const mergedRounds = mergeMapRounds(older.mapRounds || older.roundMaps || [], newer.mapRounds || newer.roundMaps || []);
+  const mergedTeams = mergeTeams(older.teams, newer.teams);
+
+  const localAccountId = older.localAccountId || newer.localAccountId || null;
+  const isSpectator = Boolean(older.isSpectator && newer.isSpectator);
+  const is2v2 = Boolean(older.is2v2 || newer.is2v2);
+  const inferred = Boolean(older.inferred && newer.inferred);
+
+  let finalScore = completing.finalScore || newer.finalScore || older.finalScore;
+  const sumFinal = (s) => (s ? (s.side0 || 0) + (s.side1 || 0) : 0);
+  if (sumFinal(newer.finalScore) > sumFinal(finalScore)) finalScore = newer.finalScore;
+  if (sumFinal(older.finalScore) > sumFinal(finalScore)) finalScore = older.finalScore;
+
+  let won = completing.won;
+  let tied = completing.tied;
+  let myScore = completing.myScore;
+  let oppScore = completing.oppScore;
+
+  let kills = (older.kills || 0) + (newer.kills || 0);
+  let deaths = (older.deaths || 0) + (newer.deaths || 0);
+  let assists = (older.assists || 0) + (newer.assists || 0);
+  let weaponBreakdown = mergeWeaponBreakdowns(older.weaponBreakdown, newer.weaponBreakdown);
+
+  if (localAccountId && !isSpectator) {
+    const side0Player = mergedTeams[0]?.find((p) => p.accountId === localAccountId);
+    const side1Player = mergedTeams[1]?.find((p) => p.accountId === localAccountId);
+    const meSide = side0Player ? 0 : (side1Player ? 1 : null);
+    const meRow = side0Player || side1Player;
+    if (meRow) {
+      kills = meRow.kills;
+      deaths = meRow.deaths;
+      assists = meRow.assists;
+      weaponBreakdown = meRow.weaponBreakdown || [];
+    }
+    if (meSide !== null && finalScore) {
+      myScore = meSide === 0 ? finalScore.side0 : finalScore.side1;
+      oppScore = meSide === 0 ? finalScore.side1 : finalScore.side0;
+      won = myScore > oppScore;
+      tied = myScore === oppScore;
+    }
+  }
+
+  const rawTags = [...(older.tags || []), ...(newer.tags || [])];
+  const uniqueTags = [...new Set(rawTags)];
+  const isRanked = isRankedFinalScore(finalScore?.side0 ?? 0, finalScore?.side1 ?? 0);
+  let tags = uniqueTags;
+  if (isRanked) {
+    tags = tags.filter((t) => t.toLowerCase() !== 'casual');
+    if (!tags.some((t) => t.toLowerCase() === 'ranked') && !is2v2) tags.push('Ranked');
+  } else if (!is2v2) {
+    tags = tags.filter((t) => t.toLowerCase() !== 'ranked');
+    if (!tags.some((t) => t.toLowerCase() === 'casual')) tags.push('Casual');
+  }
+
+  return {
+    matchId: entry1.matchId || entry2.matchId,
+    timestamp: Math.min(older.timestamp || Date.now(), newer.timestamp || Date.now()),
+    inferred,
+    won,
+    tied,
+    is2v2,
+    isSpectator,
+    myScore,
+    oppScore,
+    team0Name: completing.team0Name || newer.team0Name || older.team0Name || 'Blue Team',
+    team1Name: completing.team1Name || newer.team1Name || older.team1Name || 'Orange Team',
+    mapLabel: older.mapLabel || newer.mapLabel || mergedRounds[0]?.mapLabel || null,
+    roundCount: mergedRounds.length,
+    finalScore,
+    teams: mergedTeams,
+    localAccountId,
+    kills,
+    deaths,
+    assists,
+    weaponBreakdown,
+    mapRounds: mergedRounds,
+    roundMaps: mergedRounds,
+    tags,
+    modeOverride: completing.modeOverride || newer.modeOverride || older.modeOverride || undefined,
+    _schemaVersion: 12,
+  };
+}
+
+function cleanupSplitMatches(rankedArchive, otherArchive) {
+  if (!rankedArchive || !otherArchive) return 0;
+  let mergedCount = 0;
+
+  // 1. Check for matches split across ranked and other archives
+  const otherMatches = [...(otherArchive.data?.matches || [])];
+  for (const mOther of otherMatches) {
+    const mRanked = rankedArchive.getMatch(mOther.matchId);
+    if (mRanked) {
+      const merged = mergeArchivedMatches(mOther, mRanked);
+      const isRanked = isRankedFinalScore(merged.finalScore?.side0 ?? 0, merged.finalScore?.side1 ?? 0);
+      if (isRanked) {
+        otherArchive.deleteMatch(mOther.matchId);
+        rankedArchive.recordMatch(merged, { force: true });
+      } else {
+        rankedArchive.deleteMatch(mRanked.matchId);
+        otherArchive.recordMatch(merged, { force: true });
+      }
+      mergedCount += 1;
+    }
+  }
+
+  // 2. Check for duplicate/split matches within rankedArchive
+  const rankedById = new Map();
+  for (const m of [...(rankedArchive.data?.matches || [])]) {
+    if (!rankedById.has(m.matchId)) {
+      rankedById.set(m.matchId, [m]);
+    } else {
+      rankedById.get(m.matchId).push(m);
+    }
+  }
+  for (const [mid, list] of rankedById) {
+    if (list.length > 1) {
+      let merged = list[0];
+      for (let i = 1; i < list.length; i++) {
+        merged = mergeArchivedMatches(merged, list[i]);
+      }
+      rankedArchive.deleteMatch(mid);
+      rankedArchive.recordMatch(merged, { force: true });
+      mergedCount += 1;
+    }
+  }
+
+  // 3. Check for duplicate/split matches within otherArchive
+  const otherById = new Map();
+  for (const m of [...(otherArchive.data?.matches || [])]) {
+    if (!otherById.has(m.matchId)) {
+      otherById.set(m.matchId, [m]);
+    } else {
+      otherById.get(m.matchId).push(m);
+    }
+  }
+  for (const [mid, list] of otherById) {
+    if (list.length > 1) {
+      let merged = list[0];
+      for (let i = 1; i < list.length; i++) {
+        merged = mergeArchivedMatches(merged, list[i]);
+      }
+      otherArchive.deleteMatch(mid);
+      otherArchive.recordMatch(merged, { force: true });
+      mergedCount += 1;
+    }
+  }
+
+  return mergedCount;
+}
+
+/**
+ * Combine Pit hazard deaths across both ranked and other/casual archives.
+ */
+function getGlobalPitStats(rankedArchive, otherArchive, localPlayerName) {
+  const ranked = rankedArchive ? rankedArchive.getPitStats(localPlayerName) : { totalDeaths: 0, selfDeaths: 0, otherDeaths: 0, topVictim: null, victims: [], claims: [] };
+  const other = otherArchive ? otherArchive.getPitStats(localPlayerName) : { totalDeaths: 0, selfDeaths: 0, otherDeaths: 0, topVictim: null, victims: [], claims: [] };
+
+  const totalDeaths = ranked.totalDeaths + other.totalDeaths;
+  const selfDeaths = ranked.selfDeaths + other.selfDeaths;
+  const otherDeaths = totalDeaths - selfDeaths;
+
+  const victimMap = new Map();
+  for (const v of [...ranked.victims, ...other.victims]) {
+    const key = v.name.toUpperCase();
+    const existing = victimMap.get(key);
+    if (existing) {
+      existing.count += v.count;
+    } else {
+      victimMap.set(key, { name: v.name, count: v.count });
+    }
+  }
+  const victims = [...victimMap.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  const allClaims = [...ranked.claims, ...other.claims].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  return {
+    totalDeaths,
+    selfDeaths,
+    otherDeaths,
+    topVictim: victims[0] || null,
+    victims,
+    claims: allClaims,
+    rankedTotal: ranked.totalDeaths,
+    otherTotal: other.totalDeaths,
+  };
+}
+
+module.exports = {
+  MatchArchive,
+  WEAPON_META,
+  isRankedFinalScore,
+  mergeWeaponBreakdowns,
+  mergeTeams,
+  mergeMapRounds,
+  mergeArchivedMatches,
+  cleanupSplitMatches,
+  getGlobalPitStats,
+  computeDplRating,
+};

@@ -27,6 +27,7 @@
 
 const fs = require('node:fs/promises');
 const { MapTracker } = require('./map-tracker');
+const { WEAPON_META, mergeArchivedMatches } = require('./match-archive');
 
 /**
  * Record one match into the appropriate archive, if it isn't there yet.
@@ -90,40 +91,63 @@ function recordCompletedMatch(
 
   const isRankedRecorded = rankedArchive.hasRecordedMatch(matchId);
   const isOtherRecorded = otherArchive.hasRecordedMatch(matchId);
-  if (isRankedRecorded || isOtherRecorded) {
-    const existingArchive = isRankedRecorded ? rankedArchive : otherArchive;
-    if (!existingArchive.isLegacyMatch(matchId)) return false;
+  const existingInRanked = rankedArchive.getMatch(matchId);
+  const existingInOther = otherArchive.getMatch(matchId);
+  const existing = existingInRanked || existingInOther;
+
+  const roundNumbers = [...match.roundsByNumber.keys()].sort((a, b) => a - b);
+  const totalRounds = roundNumbers.length;
+
+  if (existing) {
+    const existingArchive = existingInRanked ? rankedArchive : otherArchive;
+    const isLegacy = existingArchive.isLegacyMatch(matchId);
+    const finalExpected = match.finalScore ? (match.finalScore.side0 ?? 0) + (match.finalScore.side1 ?? 0) : 0;
+    const isSplitOrPartial =
+      (existing.inferred && !inferred) ||
+      (existing.roundCount !== totalRounds) ||
+      (finalExpected > 0 && (existing.roundCount ?? 0) < finalExpected) ||
+      (existing.mapRounds && existing.mapRounds.some((er) => !roundNumbers.includes(er.round)));
+
+    if (!isLegacy && !isSplitOrPartial) return false;
   }
-
-  if (!accountId) return false;
-
-  const me = match.players.get(accountId);
-  if (!me) return false;
 
   const finalScore = inferred ? deriveFinalScoreFromRounds(match.roundsByNumber) : match.finalScore;
   if (!finalScore) return false;
-
-  const myScore = me.rosterSide === 0 ? finalScore.side0 : finalScore.side1;
-  const oppScore = me.rosterSide === 0 ? finalScore.side1 : finalScore.side0;
 
   // Always consume this match's share of the map queue, even if it turns
   // out not to be recorded below — otherwise a skipped match's maps would
   // bleed into whichever match comes next (map-tracker.js is a strict FIFO,
   // one entry per round, regardless of whether we keep the match).
-  const roundMaps = mapTracker.takeForRounds(match.roundsByNumber.size);
+  const roundMaps = mapTracker.takeForRounds(totalRounds);
 
   const stats = computeMatchStats(match);
-  const row = [...stats.teams[0], ...stats.teams[1]].find((r) => r.accountId === accountId);
-  if (!row) return false;
+  const me = accountId ? match.players.get(accountId) : null;
+  const row = accountId ? [...stats.teams[0], ...stats.teams[1]].find((r) => r.accountId === accountId) : null;
+  const isPlayer = Boolean(me && (me.rosterSide === 0 || me.rosterSide === 1) && row);
+  const isSpectator = !isPlayer;
 
-  const targetArchive = isRankedFinalScore(myScore, oppScore) ? rankedArchive : otherArchive;
+  const myScore = isSpectator ? finalScore.side0 : (me.rosterSide === 0 ? finalScore.side0 : finalScore.side1);
+  const oppScore = isSpectator ? finalScore.side1 : (me.rosterSide === 0 ? finalScore.side1 : finalScore.side0);
+
+  const targetArchive = isRankedFinalScore(finalScore.side0, finalScore.side1) ? rankedArchive : otherArchive;
   const is2v2 = match.is2v2 !== undefined
     ? Boolean(match.is2v2)
     : Boolean(typeof roundMaps[0]?.label === 'string' && /(?:^|\W)2v2(?:$|\W)/i.test(roundMaps[0]?.label));
 
+  const firstR = roundNumbers[0] || 1;
+  const firstObj = match.roundsByNumber.get(firstR);
   let prevWins0 = 0;
+  if (firstObj?.teamBlocks?.[0]?.roundWins !== undefined && firstR > 1) {
+    const outcomes = firstObj.teamBlocks[0].RoundOutcomes;
+    if (Array.isArray(outcomes) && outcomes.length >= firstR) {
+      prevWins0 = outcomes.slice(0, firstR - 1).filter((c) => c === 1 || c === 4).length;
+    } else {
+      const code = firstObj.teamBlocks[0].outcomeCode;
+      const wonFirst = (code === 1 || code === 4);
+      prevWins0 = Math.max(0, firstObj.teamBlocks[0].roundWins - (wonFirst ? 1 : 0));
+    }
+  }
   const mapRoundsDetailed = [];
-  const totalRounds = match.roundsByNumber.size;
 
   // Killfeed lines arrive in real time as a round is played, but that
   // round's own Stats::Kill/Damage only flush as one batch at its end — see
@@ -135,30 +159,59 @@ function recordCompletedMatch(
   // round — covers the "missed final kill lands just after this round's
   // own batch" case without needing to assume any fixed offset.
   const roundTickBounds = new Map();
-  for (let r = 1; r <= totalRounds; r++) {
+  for (const r of roundNumbers) {
     const roundObj = match.roundsByNumber.get(r);
     if (!roundObj) continue;
     const ticks = [...roundObj.kills.map((k) => k.tick), ...roundObj.damage.map((d) => d.tick)];
-    if (ticks.length > 0) roundTickBounds.set(r, { min: Math.min(...ticks), max: Math.max(...ticks) });
+    const hasCombat = ticks.length > 0;
+    const minCombat = hasCombat ? Math.min(...ticks) : null;
+    const maxCombat = hasCombat ? Math.max(...ticks) : null;
+    const hasActionStart = roundObj.actionStartTick !== undefined && roundObj.actionStartTick !== null;
+    const validActionStart = hasActionStart && (minCombat === null || roundObj.actionStartTick <= minCombat);
+    const start = validActionStart ? roundObj.actionStartTick : (minCombat ?? 0);
+    if (hasCombat || hasActionStart) {
+      roundTickBounds.set(r, { min: minCombat ?? start, max: maxCombat ?? start, start });
+    }
   }
   function killFeedForRound(r) {
     const bounds = roundTickBounds.get(r);
     if (!bounds) return [];
-    let nextRoundMin = Infinity;
-    for (let n = r + 1; n <= totalRounds; n++) {
+    let nextRoundStart = Infinity;
+    for (const n of roundNumbers) {
+      if (n <= r) continue;
       const nb = roundTickBounds.get(n);
       if (nb) {
-        nextRoundMin = nb.min;
+        nextRoundStart = nb.start ?? nb.min;
         break;
       }
     }
-    return match.killFeed.filter((entry) => entry.tick >= bounds.min && entry.tick < nextRoundMin);
+    const windowStart = bounds.start ?? bounds.min;
+    return match.killFeed.filter((entry) => entry.tick >= windowStart && entry.tick < nextRoundStart);
   }
   const entityNames = new Map([...match.players.values()].map((p) => [p.entityId, p.name?.toUpperCase()]));
+  const entityInfo = new Map();
+  for (const p of match.players.values()) {
+    if (p.entityId !== undefined && p.entityId !== null) {
+      entityInfo.set(p.entityId, { name: p.name, side: p.rosterSide, accountId: p.accountId });
+    }
+  }
+  for (const r of roundNumbers) {
+    const robj = match.roundsByNumber.get(r);
+    if (robj) {
+      for (const side of [0, 1]) {
+        for (const m of (robj.teamBlocks?.[side]?.members ?? [])) {
+          if (m.entityId !== undefined && m.entityId !== null) {
+            entityInfo.set(m.entityId, { name: m.name, side, accountId: m.accountId });
+          }
+        }
+      }
+    }
+  }
 
-  for (let r = 1; r <= totalRounds; r++) {
+  for (let idx = 0; idx < roundNumbers.length; idx++) {
+    const r = roundNumbers[idx];
     const roundObj = match.roundsByNumber.get(r);
-    const mapInfo = roundMaps[r - 1] ?? { label: 'Unknown Map', tileset: 'Unknown', mapName: 'Unknown' };
+    const mapInfo = roundMaps[idx] ?? { label: 'Unknown Map', tileset: 'Unknown', mapName: 'Unknown' };
     const wins0 = roundObj?.teamBlocks?.[0]?.roundWins ?? prevWins0;
     const winnerSide = wins0 > prevWins0 ? 0 : 1;
     prevWins0 = wins0;
@@ -169,8 +222,10 @@ function recordCompletedMatch(
     // (see isRankedFinalScore's comment) and doesn't account for which
     // roster side actually started on which role.
     const roleByRosterSide = roundObj ? roundRoleByRosterSide(roundObj) : {};
-    const myRole = roleByRosterSide[me.rosterSide];
-    const sideRole = myRole === 0 ? 'ATTACK' : myRole === 1 ? 'DEFENSE' : null;
+    const sideRole = (!isSpectator && me)
+      ? (roleByRosterSide[me.rosterSide] === 0 ? 'ATTACK' : roleByRosterSide[me.rosterSide] === 1 ? 'DEFENSE' : null)
+      : null;
+    const won = (!isSpectator && me) ? (me.rosterSide === winnerSide) : (winnerSide === 0);
 
     // How the round ended, independent of who won it (winnerSide/won above
     // already cover that). Attacker's own outcomeCode is authoritative: 1 =
@@ -184,6 +239,7 @@ function recordCompletedMatch(
     let roundResult = null;
     const attackRosterSide = roleByRosterSide[0] === 0 ? 0 : roleByRosterSide[1] === 0 ? 1 : null;
     const attackBlock = attackRosterSide === null ? null : roundObj?.teamBlocks?.[attackRosterSide];
+    const feedEntries = killFeedForRound(r);
     if (attackBlock && typeof attackBlock.outcomeCode === 'number') {
       if (attackBlock.outcomeCode === 1) {
         roundResult = 'defuse';
@@ -199,8 +255,7 @@ function recordCompletedMatch(
         // elimination as a save. Cross-reference by name (killfeed has no
         // entityId) for any attacker death Stats::Kill missed.
         const attackNamesById = new Map(attackBlock.members.map((m) => [m.entityId, m.name?.toUpperCase()]));
-        for (const entry of killFeedForRound(r)) {
-          if (entry.isEnvironmentKill) continue;
+        for (const entry of feedEntries) {
           for (const [entityId, name] of attackNamesById) {
             if (name && name === entry.victimName?.toUpperCase()) attackDeadIds.add(entityId);
           }
@@ -217,19 +272,132 @@ function recordCompletedMatch(
     // De-duplicated by victim name rather than id, since killfeed lines
     // don't carry entityId — safe within one round, since nobody respawns
     // to be killed twice.
-    const myKillVictimNames = new Set(
-      (roundObj?.kills ?? [])
-        .filter((k) => k.attackerId === me.entityId && k.attackerSide !== k.victimSide)
-        .map((k) => entityNames.get(k.victimId))
-    );
-    for (const entry of killFeedForRound(r)) {
-      if (entry.isEnvironmentKill) continue;
+    let myKills = 0;
+    if (!isSpectator && me) {
+      const myKillVictimNames = new Set(
+        (roundObj?.kills ?? [])
+          .filter((k) => k.attackerId === me.entityId && k.attackerSide !== k.victimSide)
+          .map((k) => entityNames.get(k.victimId))
+      );
+      for (const entry of feedEntries) {
+        if (entry.isEnvironmentKill) continue;
+        const victimUpper = entry.victimName?.toUpperCase();
+        if (entry.killerName?.toUpperCase() === me.name?.toUpperCase() && victimUpper && !myKillVictimNames.has(victimUpper)) {
+          myKillVictimNames.add(victimUpper);
+        }
+      }
+      myKills = myKillVictimNames.size;
+    }
+
+    // Detailed per-round kill timeline: who kills whom with what, and elapsed timings
+    const bounds = roundTickBounds.get(r);
+    let startTick = bounds ? (bounds.start ?? bounds.min) : 0;
+    if ((!bounds || startTick === undefined || startTick === null) && feedEntries.length > 0) {
+      startTick = Math.min(...feedEntries.map((e) => e.tick));
+    }
+
+    const roundKills = [];
+    const recordedVictimNames = new Set();
+
+    for (const k of (roundObj?.kills ?? [])) {
+      const killer = entityInfo.get(k.attackerId);
+      const victim = entityInfo.get(k.victimId);
+      const killerName = killer?.name || entityNames.get(k.attackerId) || `Player ${k.attackerId}`;
+      const victimName = victim?.name || entityNames.get(k.victimId) || `Player ${k.victimId}`;
+      const killerSide = k.attackerSide !== undefined ? k.attackerSide : (killer?.side ?? null);
+      const victimSide = k.victimSide !== undefined ? k.victimSide : (victim?.side ?? null);
+      const weaponCode = k.damageSource;
+      const weaponLabel = (weaponCode !== undefined && WEAPON_META[weaponCode]?.label)
+        ? WEAPON_META[weaponCode].label
+        : (weaponCode !== undefined ? `Weapon #${weaponCode}` : 'Unknown');
+      const isTeamKill = killerSide !== null && victimSide !== null && killerSide === victimSide;
+      const tick = Number(k.tick);
+      const deltaTicks = Math.max(0, tick - startTick);
+      const seconds = Math.round(deltaTicks / 20);
+      const mins = Math.floor(seconds / 60);
+      const secs = String(seconds % 60).padStart(2, '0');
+      const timeFormatted = `${mins}:${secs}`;
+
+      roundKills.push({
+        tick,
+        seconds,
+        timeFormatted,
+        killerName,
+        killerSide,
+        victimName,
+        victimSide,
+        weapon: weaponLabel,
+        damageSource: weaponCode,
+        isTeamKill,
+        isEnvironment: false,
+      });
+      if (victimName) recordedVictimNames.add(victimName.toUpperCase());
+    }
+
+    for (const entry of feedEntries) {
+      if (entry.isEnvironmentKill) {
+        const tick = Number(entry.tick);
+        const deltaTicks = Math.max(0, tick - startTick);
+        const seconds = Math.round(deltaTicks / 20);
+        const mins = Math.floor(seconds / 60);
+        const secs = String(seconds % 60).padStart(2, '0');
+        const timeFormatted = `${mins}:${secs}`;
+        const victim = [...entityInfo.values()].find((e) => e.name?.toUpperCase() === entry.victimName?.toUpperCase());
+        const isPit = Boolean(entry.isPitDeath || entry.killerName?.toUpperCase() === 'PIT' || entry.verb?.toUpperCase() === 'ROASTED');
+        roundKills.push({
+          tick,
+          seconds,
+          timeFormatted,
+          killerName: entry.killerName,
+          killerSide: null,
+          victimName: entry.victimName,
+          victimSide: victim?.side ?? null,
+          weapon: isPit ? 'Pit' : (entry.killerName?.toUpperCase() === 'UAV' ? 'UAV Zap' : (entry.verb || 'Environment')),
+          damageSource: null,
+          isTeamKill: false,
+          isEnvironment: true,
+          isPit,
+        });
+        if (entry.victimName) recordedVictimNames.add(entry.victimName.toUpperCase());
+        continue;
+      }
       const victimUpper = entry.victimName?.toUpperCase();
-      if (entry.killerName?.toUpperCase() === me.name?.toUpperCase() && victimUpper && !myKillVictimNames.has(victimUpper)) {
-        myKillVictimNames.add(victimUpper);
+      if (victimUpper && !recordedVictimNames.has(victimUpper)) {
+        recordedVictimNames.add(victimUpper);
+        const killer = [...entityInfo.values()].find((e) => e.name?.toUpperCase() === entry.killerName?.toUpperCase());
+        const victim = [...entityInfo.values()].find((e) => e.name?.toUpperCase() === entry.victimName?.toUpperCase());
+        const killerSide = killer?.side ?? null;
+        const victimSide = victim?.side ?? null;
+        const tick = Number(entry.tick);
+        const deltaTicks = Math.max(0, tick - startTick);
+        const seconds = Math.round(deltaTicks / 20);
+        const mins = Math.floor(seconds / 60);
+        const secs = String(seconds % 60).padStart(2, '0');
+        const timeFormatted = `${mins}:${secs}`;
+        let weaponStr = entry.verb || 'Killed';
+        const spriteMatch = /name="([^"]+)"/i.exec(weaponStr);
+        if (spriteMatch) {
+          weaponStr = spriteMatch[1];
+        }
+        const isPit = Boolean(entry.isPitDeath || entry.killerName?.toUpperCase() === 'PIT' || entry.verb?.toUpperCase() === 'ROASTED');
+        roundKills.push({
+          tick,
+          seconds,
+          timeFormatted,
+          killerName: entry.killerName,
+          killerSide,
+          victimName: entry.victimName,
+          victimSide,
+          weapon: isPit ? 'Pit' : weaponStr,
+          damageSource: null,
+          isTeamKill: killerSide !== null && victimSide !== null && killerSide === victimSide,
+          isEnvironment: isPit,
+          isPit,
+        });
       }
     }
-    const myKills = myKillVictimNames.size;
+
+    roundKills.sort((a, b) => a.tick - b.tick);
 
     mapRoundsDetailed.push({
       round: r,
@@ -238,20 +406,25 @@ function recordCompletedMatch(
       tileset: mapInfo.tileset ?? 'Unknown',
       mapName: mapInfo.mapName ?? mapInfo.label,
       winnerSide,
-      won: me.rosterSide === winnerSide,
+      won,
       sideRole,
       roundResult,
+      kills: roundKills,
+      actionStartTick: roundObj?.actionStartTick ?? null,
     });
   }
 
   const team0Name = match.team0Name || 'Blue Team';
   const team1Name = match.team1Name || 'Orange Team';
 
-  targetArchive.recordMatch({
+  const defaultTags = is2v2 ? ['2v2'] : (targetArchive === rankedArchive ? ['Ranked'] : ['Casual']);
+  const tags = isSpectator ? [...defaultTags, 'Spectated'] : defaultTags;
+
+  const newEntry = {
     matchId,
     timestamp: Date.now(),
     inferred, // true if no matchEnded event was ever seen for this match — see the doc comment above
-    won: myScore > oppScore,
+    won: isSpectator ? false : myScore > oppScore,
     // A 6-6 ranked score is a real, decisive-enough-to-record outcome (see
     // isRankedFinalScore below) but it's neither a win nor a loss — won
     // stays a strict boolean (myScore > oppScore, false here) since that's
@@ -260,6 +433,7 @@ function recordCompletedMatch(
     // of quietly treating a tie as a loss.
     tied: myScore === oppScore,
     is2v2,
+    isSpectator,
     myScore,
     oppScore,
     team0Name,
@@ -267,16 +441,42 @@ function recordCompletedMatch(
     mapLabel: roundMaps[0]?.label ?? null, // round 1's map represents the match; see map-tracker.js
     mapRounds: mapRoundsDetailed,
     roundMaps: mapRoundsDetailed,
-    localAccountId: accountId,
+    localAccountId: isSpectator ? null : accountId,
     roundCount: stats.roundCount,
     finalScore, // not perspective-flipped — side0/side1 as reported, for the detail view's team columns
     teams: stats.teams, // FULL scoreboard: { 0: [row, ...], 1: [row, ...] }, every player
-    kills: row.kills,
-    deaths: row.deaths,
-    assists: row.assists,
-    weaponBreakdown: row.weaponBreakdown,
-    tags: is2v2 ? ['2v2'] : (targetArchive === rankedArchive ? ['Ranked'] : ['Casual']),
-  });
+    kills: isSpectator ? 0 : (row?.kills ?? 0),
+    deaths: isSpectator ? 0 : (row?.deaths ?? 0),
+    assists: isSpectator ? 0 : (row?.assists ?? 0),
+    weaponBreakdown: isSpectator ? [] : (row?.weaponBreakdown ?? []),
+    tags,
+  };
+
+  let entryToRecord = newEntry;
+  if (existing) {
+    const finalExpected = finalScore ? (finalScore.side0 ?? 0) + (finalScore.side1 ?? 0) : 0;
+    const isSplitOrPartial =
+      (existing.inferred && !newEntry.inferred) ||
+      (existing.roundCount !== newEntry.roundCount) ||
+      (finalExpected > 0 && (existing.roundCount ?? 0) < finalExpected) ||
+      (existing.mapRounds && existing.mapRounds.some((er) => !roundNumbers.includes(er.round)));
+
+    if (isSplitOrPartial) {
+      entryToRecord = mergeArchivedMatches(existing, newEntry);
+    }
+  }
+
+  const finalTargetArchive = isRankedFinalScore(entryToRecord.finalScore?.side0 ?? 0, entryToRecord.finalScore?.side1 ?? 0)
+    ? rankedArchive
+    : otherArchive;
+
+  if (finalTargetArchive === rankedArchive) {
+    if (existingInOther) otherArchive.deleteMatch(matchId);
+    rankedArchive.recordMatch(entryToRecord, { force: true });
+  } else {
+    if (existingInRanked) rankedArchive.deleteMatch(matchId);
+    otherArchive.recordMatch(entryToRecord, { force: true });
+  }
   return true;
 }
 
@@ -558,5 +758,6 @@ module.exports = {
   scanZipFileForCompletedMatches,
   scanArchiveZipsForCompletedMatches,
   readZipLogText,
+  isRankedFinalScore,
 };
 

@@ -11,7 +11,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { exec } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, screen, globalShortcut, ipcMain, shell, desktopCapturer, Tray, Menu, Notification, nativeImage } = require('electron');
+const { app, BrowserWindow, screen, globalShortcut, ipcMain, shell, desktopCapturer, Tray, Menu, Notification, nativeImage, dialog } = require('electron');
 
 app.setName('Due Process Tracker');
 app.setAppUserModelId('com.dpstat.tracker');
@@ -30,7 +30,8 @@ if (appIconPath) {
 }
 
 const config = require('./config');
-const { MatchArchive } = require('./match-archive');
+const { MatchArchive, cleanupSplitMatches, getGlobalPitStats } = require('./match-archive');
+const { buildGlobalPlayerDatabase, generatePortalMarkup } = require('./global-database');
 const { findLocalAccountId } = require('./local-player');
 const { MapTracker } = require('./map-tracker');
 const { MapLayoutLibrary } = require('./map-layout-library');
@@ -717,6 +718,7 @@ function sendHubUpdate() {
     playedWithStats: playedWithStats,
     mapStats: rankedArchive.getMapStats(),
     liveMatch: getLiveMatchState(playedWithStats, lifetimeStats),
+    pitStats: getGlobalPitStats(rankedArchive, otherArchive, currentPlayerName()),
     overlayHotkey: settingsStore ? settingsStore.get('overlayHotkey') : config.OVERLAY_HOTKEY,
   });
 }
@@ -1209,6 +1211,63 @@ ipcMain.handle('hub:get-ranked-history', () => {
 ipcMain.handle('hub:get-other-history', () => {
   return otherArchive.getRecentMatches(Number.MAX_SAFE_INTEGER);
 });
+ipcMain.handle('hub:get-pit-stats', () => {
+  return getGlobalPitStats(rankedArchive, otherArchive, currentPlayerName());
+});
+
+// Global Player Database & Web Portal export (Ranked only)
+ipcMain.handle('hub:get-global-database', () => {
+  return buildGlobalPlayerDatabase(rankedArchive);
+});
+
+ipcMain.handle('hub:export-web-database', () => {
+  const dbData = buildGlobalPlayerDatabase(rankedArchive);
+  return {
+    dbData,
+    json: JSON.stringify(dbData, null, 2),
+    html: generatePortalMarkup(dbData, false),
+    php: generatePortalMarkup(null, true),
+    lastUpdated: dbData.lastUpdated,
+    meta: dbData.meta,
+  };
+});
+
+ipcMain.handle('hub:save-web-database-file', async (_event, type) => {
+  const dbData = buildGlobalPlayerDatabase(rankedArchive);
+  let defaultPath = 'database.json';
+  let filters = [{ name: 'JSON Database (*.json)', extensions: ['json'] }];
+  let content = JSON.stringify(dbData, null, 2);
+
+  if (type === 'html') {
+    defaultPath = 'players_database.html';
+    filters = [{ name: 'HTML Document (*.html)', extensions: ['html', 'htm'] }];
+    content = generatePortalMarkup(dbData, false);
+  } else if (type === 'php') {
+    defaultPath = 'index.php';
+    filters = [{ name: 'PHP Script (*.php)', extensions: ['php'] }];
+    content = generatePortalMarkup(null, true);
+  }
+
+  const { canceled, filePath } = await dialog.showSaveDialog(hubWindow, {
+    title: `Export Due Process Player Database (${type.toUpperCase()})`,
+    defaultPath,
+    filters,
+  });
+
+  if (canceled || !filePath) return { success: false, canceled: true };
+
+  await fsp.writeFile(filePath, content, 'utf8');
+  return { success: true, filePath };
+});
+
+ipcMain.handle('hub:open-web-folder', () => {
+  const webDir = path.join(__dirname, '..', 'web');
+  if (!fs.existsSync(webDir)) {
+    fs.mkdirSync(webDir, { recursive: true });
+  }
+  shell.openPath(webDir);
+  return true;
+});
 
 // Delete a match from whichever archive it lives in, then push fresh
 // (re-derived, since totals are summed on read) totals/lists to the Hub.
@@ -1348,6 +1407,9 @@ async function main() {
   rankedArchive = new MatchArchive(path.join(userDataDir, 'match-archive.json'));
   otherArchive = new MatchArchive(path.join(userDataDir, 'other-matches-archive.json'));
 
+  // Merge any matches split across crashes
+  cleanupSplitMatches(rankedArchive, otherArchive);
+
   // Ensure any matches with an explicit non-Ranked mode override currently stored in rankedArchive are migrated to otherArchive.
   const misclassified = rankedArchive.data.matches.filter((m) => m.modeOverride && m.modeOverride.toLowerCase() !== 'ranked');
   for (const m of misclassified) {
@@ -1441,6 +1503,7 @@ async function main() {
         `${currentScan.recorded} from Player.log.`
     );
   }
+  cleanupSplitMatches(rankedArchive, otherArchive);
   localAccountId = rankedArchive.getLocalAccountId() || otherArchive.getLocalAccountId(); // the scans above may have just discovered it
   sendHubUpdate();
 
