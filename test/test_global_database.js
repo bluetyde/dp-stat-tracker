@@ -28,6 +28,7 @@ rankedArchive.data = {
             deaths: 4,
             assists: 2,
             damage: 1200,
+            teamDamage: 45,
             kast: { kastRounds: 8, roundsCounted: 10 },
             adr: { attackDamageRaw: 600, attackRounds: 5, defenseDamageRaw: 600, defenseRounds: 5 },
             openingDuels: { won: 2, involved: 3 },
@@ -80,6 +81,7 @@ rankedArchive.data = {
             deaths: 6,
             assists: 3,
             damage: 1000,
+            teamDamage: 15,
             kast: { kastRounds: 8, roundsCounted: 12 },
           }
         ],
@@ -163,8 +165,12 @@ assert.strictEqual(localP.kills, 18, '10 + 8 = 18 kills in ranked');
 assert.strictEqual(localP.deaths, 10, '4 + 6 = 10 deaths in ranked');
 assert.strictEqual(localP.assists, 5, '2 + 3 = 5 assists in ranked');
 assert.strictEqual(localP.damage, 2200, '1200 + 1000 = 2200 damage in ranked');
+assert.strictEqual(localP.teamDamage, 60, '45 + 15 = 60 team damage');
+assert.strictEqual(localP.topWeapons[0].damage, 700, 'Weapon damage should be recorded');
 assert.strictEqual(localP.roundsCounted, 22, '10 + 12 = 22 rounds in ranked');
 assert(localP.dplRating > 0.5, 'DPL rating should be calculated');
+assert.strictEqual(db.meta.totalDamage, 5000, 'Total damage across all ranked players');
+assert.strictEqual(db.meta.totalTeamDamage, 60, 'Total friendly fire damage across all ranked players');
 assert.strictEqual(localP.recentMatches.length, 2, 'Recent matches should only have 2 ranked matches');
 assert.strictEqual(localP.recentMatches[0].matchId, 'match-ranked-2', 'Recent matches sorted newest first');
 assert.strictEqual(localP.recentMatches[0].matchup, 'Defenders vs Attackers', 'Match name must use team names');
@@ -199,6 +205,12 @@ assert(htmlMarkup.includes('statTotalPlayers'), 'HTML output should contain stat
 assert(htmlMarkup.includes('playerModalBackdrop'), 'HTML output should contain player modal');
 assert(htmlMarkup.includes('<th>Matchup</th>'), 'HTML output should contain Matchup header');
 assert(!htmlMarkup.includes('<th>Map</th>'), 'HTML output must NOT contain Map header');
+assert(htmlMarkup.includes('>Damage</th>'), 'HTML output should contain Damage header in weapons table');
+assert(htmlMarkup.includes('data-sort="damage"'), 'HTML output should contain sortable Damage column');
+assert(htmlMarkup.includes('data-sort="teamDamage"'), 'HTML output should contain sortable FF DMG column');
+assert(htmlMarkup.includes('>FF DMG</th>'), 'HTML output should contain FF DMG header in leaderboard');
+assert(htmlMarkup.includes('Friendly Fire'), 'HTML output should contain Friendly Fire label in modal');
+assert(!htmlMarkup.includes('HS %</th>'), 'HTML output should NOT contain HS % in weapons table');
 
 const phpMarkup = generatePortalMarkup(null, true);
 assert(phpMarkup.includes('<?php'), 'PHP output should start with PHP tag');
@@ -207,6 +219,12 @@ assert(phpMarkup.includes('window.GLOBAL_DATABASE = <?= $dbData'), 'PHP output s
 assert(phpMarkup.includes('<!doctype html>'), 'PHP output should contain HTML document');
 assert(phpMarkup.includes('<th>Matchup</th>'), 'PHP output should contain Matchup header');
 assert(!phpMarkup.includes('<th>Map</th>'), 'PHP output must NOT contain Map header');
+assert(phpMarkup.includes('>Damage</th>'), 'PHP output must contain Damage header in weapons table');
+assert(phpMarkup.includes('data-sort="damage"'), 'PHP output must contain sortable Damage column');
+assert(phpMarkup.includes('data-sort="teamDamage"'), 'PHP output must contain sortable FF DMG column');
+assert(phpMarkup.includes('>FF DMG</th>'), 'PHP output must contain FF DMG header in leaderboard');
+assert(phpMarkup.includes('Friendly Fire'), 'PHP output must contain Friendly Fire label in modal');
+assert(!phpMarkup.includes('HS %</th>'), 'PHP output must NOT contain HS % in weapons table');
 
 console.log('✓ generatePortalMarkup accurately generates both Standalone HTML and PHP portals');
 
@@ -219,6 +237,9 @@ assert(webIndexContent.includes("$dbFile = __DIR__ . '/database.json';"), 'web/i
 assert(webIndexContent.includes('Last Updated:'), 'web/index.php must display Last Updated');
 assert(webIndexContent.includes('<th>Matchup</th>'), 'web/index.php must use Matchup header for team names');
 assert(!webIndexContent.includes('<th>Map</th>'), 'web/index.php must NOT use Map header for match names');
+assert(webIndexContent.includes('>Damage</th>'), 'web/index.php must contain Damage header in weapons table');
+assert(webIndexContent.includes('>FF DMG</th>'), 'web/index.php must contain FF DMG header in leaderboard');
+assert(!webIndexContent.includes('HS %</th>'), 'web/index.php must NOT contain HS % in weapons table');
 
 console.log('✓ web/index.php file verified successfully');
 

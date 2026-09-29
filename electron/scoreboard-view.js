@@ -13,6 +13,25 @@ function scoreboardEscapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function getRowDplRating(row) {
+  if (row && row.dplRating !== undefined && row.dplRating !== null && !isNaN(row.dplRating)) {
+    return Number(row.dplRating);
+  }
+  if (!row) return null;
+  const rounds = row.kast?.roundsCounted ?? 0;
+  if (rounds <= 0) return null;
+  const kpr = (row.kills ?? 0) / rounds;
+  const adr = (row.damage ?? 0) / rounds;
+  const srv = Math.max(0, (rounds - (row.deaths ?? 0)) / rounds);
+  const kastPct = row.kast?.percent ?? 0;
+  const kda = ((row.kills ?? 0) + (row.assists ?? 0)) / Math.max(1, row.deaths ?? 0);
+  const kdaFactor = kda / 1.5;
+  const kastFactor = kastPct / 70;
+  const baseCombat = 0.25 * kdaFactor + 0.25 * kastFactor + 0.20 * kpr + 0.20 * (adr / 100) + 0.10 * srv;
+  const winImpact = 0.65 + 0.70 * 0.50;
+  return Math.round(baseCombat * winImpact * 100) / 100;
+}
+
 function renderScoreboardTeamColumn(teamIndex, label, roundWins, rows, localAccountId) {
   const col = document.createElement('div');
   col.className = 'team-col';
@@ -40,14 +59,19 @@ function renderScoreboardTeamColumn(teamIndex, label, roundWins, rows, localAcco
     const hsText = row.hsPercent !== null && row.hsPercent !== undefined ? `${row.hsPercent}%` : '—';
     const ffVal = row.teamDamage ?? 0;
     const ffClass = ffVal > 0 ? 'ff-alert' : 'dim';
+
+    const dplVal = getRowDplRating(row);
+    let dplTagHtml = '';
+    if (dplVal !== null) {
+      const tierClass = dplVal >= 1.2 ? 'dpl-tag--high' : dplVal >= 0.9 ? 'dpl-tag--mid' : 'dpl-tag--low';
+      dplTagHtml = `<span class="played-with-tag dpl-tag ${tierClass}" title="Match DPL Rating: ${dplVal.toFixed(2)}">${dplVal.toFixed(2)}</span>`;
+    }
+
     // .name-text is a nested span, not just the name string directly inside
-    // .name, so attachPlayerClickHandlers's appended played-with-tag (a
-    // sibling of .name-text, not a child) gets its own truncation unit —
-    // see theme.css's .player-row .name comment for why sharing one
-    // ellipsis box between the name and the tag was truncating names that
-    // had plenty of room on their own.
+    // .name, so the DPL rating tag (a sibling of .name-text, not a child)
+    // gets its own truncation unit — see theme.css's .player-row .name comment.
     el.innerHTML = `
-      <span class="name"><span class="name-text">${scoreboardEscapeHtml(row.name)}</span></span>
+      <span class="name"><span class="name-text">${scoreboardEscapeHtml(row.name)}</span>${dplTagHtml}</span>
       <span class="num">${row.damage}</span>
       <span class="num">${row.adr.attack}-${row.adr.defense}</span>
       <span class="ctr">${row.kills}-${row.deaths}-${row.assists}</span>

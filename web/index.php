@@ -609,6 +609,8 @@ if (file_exists($dbFile)) {
             <th data-sort="kdr" class="text-right" style="width:80px">K/D</th>
             <th data-sort="adr" class="text-right" style="width:80px">ADR</th>
             <th data-sort="kast" class="text-right" style="width:80px">KAST</th>
+            <th data-sort="damage" class="text-right" style="width:90px">Damage</th>
+            <th data-sort="teamDamage" class="text-right" style="width:80px">FF DMG</th>
             <th data-sort="kills" class="text-right" style="width:80px">Kills</th>
             <th data-sort="deaths" class="text-right" style="width:80px">Deaths</th>
             <th data-sort="assists" class="text-right" style="width:80px">Assists</th>
@@ -635,7 +637,7 @@ if (file_exists($dbFile)) {
 
     <div class="modal-body">
       <!-- Top Stat Grid -->
-      <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:12px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:12px">
         <div class="stat-tile" style="padding:14px">
           <div class="label">DPL Rating</div>
           <div class="value" id="modalRating" style="color:var(--accent);font-size:28px">1.00</div>
@@ -655,6 +657,16 @@ if (file_exists($dbFile)) {
           <div class="label">ADR / KAST</div>
           <div class="value" id="modalAdr" style="font-size:28px">0</div>
           <div class="sub" id="modalKastSub">0% KAST</div>
+        </div>
+        <div class="stat-tile" style="padding:14px">
+          <div class="label">Damage</div>
+          <div class="value" id="modalDamage" style="font-size:28px">0</div>
+          <div class="sub">total damage done</div>
+        </div>
+        <div class="stat-tile" style="padding:14px">
+          <div class="label">Friendly Fire</div>
+          <div class="value" id="modalTeamDamage" style="font-size:28px;color:var(--loss-bright)">0</div>
+          <div class="sub">team damage dealt</div>
         </div>
         <div class="stat-tile" style="padding:14px">
           <div class="label">Opening Duels</div>
@@ -692,7 +704,7 @@ if (file_exists($dbFile)) {
               <tr>
                 <th>Weapon</th>
                 <th class="text-right">Kills</th>
-                <th class="text-right">HS %</th>
+                <th class="text-right">Damage</th>
               </tr>
             </thead>
             <tbody id="modalWeaponsBody"></tbody>
@@ -804,7 +816,7 @@ if (file_exists($dbFile)) {
     tableBody.innerHTML = '';
 
     if (players.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="12" class="empty-banner">No players match the current search filter.</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="14" class="empty-banner">No players match the current search filter.</td></tr>';
       return;
     }
 
@@ -839,6 +851,8 @@ if (file_exists($dbFile)) {
         <td class="text-right" style="font-weight:600">${p.kdr.toFixed(2)}</td>
         <td class="text-right">${p.adr}</td>
         <td class="text-right">${p.kast}%</td>
+        <td class="text-right" style="font-weight:600">${(p.damage || 0).toLocaleString()}</td>
+        <td class="text-right" style="color:${(p.teamDamage || 0) > 0 ? 'var(--loss-bright)' : 'var(--text-faint)'}">${(p.teamDamage || 0).toLocaleString()}</td>
         <td class="text-right" style="color:var(--text-bright)">${p.kills}</td>
         <td class="text-right" style="color:var(--text-dim)">${p.deaths}</td>
         <td class="text-right" style="color:var(--text-muted)">${p.assists}</td>
@@ -933,6 +947,8 @@ if (file_exists($dbFile)) {
     document.getElementById('modalKdSub').textContent = `${p.kills} kills / ${p.deaths} deaths`;
     document.getElementById('modalAdr').textContent = p.adr;
     document.getElementById('modalKastSub').textContent = `${p.kast}% KAST (${p.roundsCounted} rounds)`;
+    document.getElementById('modalDamage').textContent = (p.damage || 0).toLocaleString();
+    document.getElementById('modalTeamDamage').textContent = (p.teamDamage || 0).toLocaleString();
 
     if (p.duels && typeof p.duels.pct === 'number') {
       document.getElementById('modalDuels').textContent = `${p.duels.pct}%`;
@@ -959,11 +975,10 @@ if (file_exists($dbFile)) {
     } else {
       weapons.forEach((w) => {
         const tr = document.createElement('tr');
-        const hsPct = w.hits > 0 ? Math.round((w.headshots / w.hits) * 100) : 0;
         tr.innerHTML = `
           <td style="font-weight:600">${escapeHtml(w.label || w.name)}</td>
           <td class="text-right" style="color:var(--accent);font-weight:700">${w.kills}</td>
-          <td class="text-right" style="color:var(--text-dim)">${hsPct}%</td>
+          <td class="text-right" style="color:var(--text-bright);font-weight:600">${(w.damage || 0).toLocaleString()}</td>
         `;
         weaponsBody.appendChild(tr);
       });
